@@ -26,6 +26,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
+        # Secret mounts get owned root:root by default; fsGroup is what
+        # kubelet chowns the projected files to. Without this, veron
+        # (uid 10001) can't read /etc/veron/tls/{tls.crt,tls.key}.
+        fsGroup: 10001
       # Soft-deploy is the default: scripts/soft-deploy-veron.sh (in the
        # cluster-infra repo) execs into this pod and runs
        # /opt/veron/deploy/deploy.sh which git-fetches origin/main and
@@ -87,4 +91,4 @@ spec:
         - name: tls
           secret:
             secretName: veron-tls
-            defaultMode: 0400
+            defaultMode: 0440
