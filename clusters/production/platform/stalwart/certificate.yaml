@@ -1,23 +1,10 @@
-# Two separate certs because they protect different things and rotate
-# into different consumers:
-#
-#   stalwart-admin-tls  → consumed by Traefik via the Ingress TLS block
-#                         for the admin UI on stalwart.classic-computing.de
-#
-#   stalwart-mail-tls   → mounted as a Secret volume into the Stalwart
-#                         pod at /etc/stalwart/tls. Stalwart serves SMTP
-#                         (465 implicit / 25+587 STARTTLS) and IMAP
-#                         (993 implicit / 143 STARTTLS) with this cert.
-#                         The hostname MUST be post.classic-computing.de
-#                         so the cert name matches what remote MTAs see
-#                         in the EHLO/MX lookup.
-#
-# HTTP-01 validation for both works through Traefik on port 80 — the LB
-# routes 80→Traefik, and cert-manager creates a temporary Ingress with
-# /.well-known/acme-challenge/* for the duration of the challenge. Both
-# stalwart.classic-computing.de and post.classic-computing.de have
-# A/AAAA records pointing at the LB (see cluster-infra/terraform/dns.tf).
----
+# Only the admin UI cert is managed by cert-manager. Stalwart's mail
+# cert (post.classic-computing.de) cannot use HTTP-01 via Traefik
+# because post resolves to the agent node's public IP (to match rDNS,
+# see cluster-infra/terraform/dns.tf) — not to the LB. Stalwart solves
+# this with its built-in ACME client: it listens on port 80 via hostPort
+# on the agent node and obtains its own cert. See configmap.toml for
+# the [acme.*] block.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -34,29 +21,6 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
-    rotationPolicy: Always
-  duration: 2160h
-  renewBefore: 720h
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: stalwart-mail-tls
-  namespace: platform
-spec:
-  secretName: stalwart-mail-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  commonName: post.classic-computing.de
-  dnsNames:
-    - post.classic-computing.de
-  # RSA (not ECDSA) because a handful of older MTAs still reject ECDSA
-  # server certs over SMTP/STARTTLS. Admin UI can stay on ECDSA — HTTPS
-  # clients are all modern.
-  privateKey:
-    algorithm: RSA
-    size: 2048
     rotationPolicy: Always
   duration: 2160h
   renewBefore: 720h

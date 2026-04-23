@@ -44,6 +44,11 @@ spec:
           image: stalwartlabs/stalwart:latest
           imagePullPolicy: IfNotPresent
           ports:
+            # :80 is exposed on the node for Stalwart's built-in ACME
+            # HTTP-01 challenge (see configmap.toml → [acme.*]). Stalwart
+            # obtains and rotates post.classic-computing.de's cert itself;
+            # cert-manager isn't in this path.
+            - { name: acme,       containerPort: 80,  hostPort: 80  }
             - { name: smtp,       containerPort: 25,  hostPort: 25  }
             - { name: smtps,      containerPort: 465, hostPort: 465 }
             - { name: submission, containerPort: 587, hostPort: 587 }
@@ -63,7 +68,6 @@ spec:
           volumeMounts:
             - { name: config, mountPath: /opt/stalwart/etc, readOnly: true }
             - { name: data,   mountPath: /var/lib/stalwart }
-            - { name: tls,    mountPath: /etc/stalwart/tls, readOnly: true }
           # TCP probe on the HTTP admin port. Cheap, no auth required
           # for the probe path (Stalwart answers on :8080 as soon as the
           # listeners are up).
@@ -85,7 +89,3 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: stalwart-data
-        - name: tls
-          secret:
-            secretName: stalwart-mail-tls
-            defaultMode: 0440

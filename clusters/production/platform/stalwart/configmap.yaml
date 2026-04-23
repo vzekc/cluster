@@ -55,19 +55,39 @@ data:
     store = "postgres"
 
     # ------------------------------------------------------------------
-    # TLS. Certs are refreshed in place by cert-manager; Stalwart picks
-    # up changes on its next config reload (or pod restart).
+    # TLS via Stalwart's built-in ACME client. cert-manager handles the
+    # admin UI cert (through Traefik) but not this one, because
+    # post.classic-computing.de points at the agent node IP — not at the
+    # LB where Traefik lives — so HTTP-01 has to be served locally.
+    # Stalwart owns port 80 (hostPort in the Deployment + Hetzner fw
+    # rule) and uses it to respond to Let's Encrypt's challenge.
     # ------------------------------------------------------------------
+    [acme."letsencrypt"]
+    directory = "https://acme-v02.api.letsencrypt.org/directory"
+    challenge = "http-01"
+    contact = "mailto:postmaster@classic-computing.de"
+    domains = ["post.classic-computing.de"]
+    # Cert + key are written into the data store; survives pod restarts
+    # and rotates automatically before expiry.
+
     [certificate."default"]
-    cert = "%{file:/etc/stalwart/tls/tls.crt}%"
-    private-key = "%{file:/etc/stalwart/tls/tls.key}%"
     default = true
+    acme = "letsencrypt"
 
     # ------------------------------------------------------------------
     # Listeners. All bind to :: so they accept IPv4 and IPv6. The pod
     # exposes these as hostPort on the agent node and the Hetzner
     # firewall permits them (see cluster-infra/terraform/main.tf).
     # ------------------------------------------------------------------
+
+    # ACME HTTP-01 challenge responder. Only serves /.well-known/acme-
+    # challenge/* — not the admin UI, which lives on :8080 behind
+    # Traefik. Stalwart recognizes this listener's role from the
+    # [acme.*] config above.
+    [server.listener."acme"]
+    bind = "[::]:80"
+    protocol = "http"
+
     [server.listener."smtp"]
     bind = "[::]:25"
     protocol = "smtp"
@@ -123,6 +143,7 @@ data:
       "directory.*",
       "storage.*",
       "certificate.*",
+      "acme.*",
       "server.hostname",
       "server.listener.*",
       "authentication.fallback-admin.*",
