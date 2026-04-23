@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: exhibitron
+  namespace: prod
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: exhibitron.k8s.classic-computing.de
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [exhibitron.k8s.classic-computing.de]
+      secretName: exhibitron-tls
+  rules:
+    - host: exhibitron.k8s.classic-computing.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: exhibitron
+                port: { number: 80 }

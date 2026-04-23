@@ -1,0 +1,24 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: exhibitron-db
+  namespace: prod
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+  storage:
+    size: 20Gi
+    storageClass: hcloud-volumes
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+  bootstrap:
+    initdb:
+      database: exhibitron
+      owner: exhibitron
+      postInitSQL:
+        # MikroORM uses citext for case-insensitive emails.
+        - CREATE EXTENSION IF NOT EXISTS citext
+  monitoring:
+    enablePodMonitor: false

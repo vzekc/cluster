@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exhibitron
+  namespace: prod
+  labels:
+    app: exhibitron
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels:
+      app: exhibitron
+  template:
+    metadata:
+      labels:
+        app: exhibitron
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: exhibitron
+          image: ghcr.io/vzekc/exhibitron:main
+          imagePullPolicy: Always
+          ports:
+            - { name: http, containerPort: 3001 }
+          env:
+            - { name: NODE_ENV, value: "production" }
+            - { name: LOG_LEVEL, value: "INFO" }
+            # CNPG builds the URI from component fields. MikroORM accepts
+            # the standard postgres:// format.
+            - { name: DATABASE_URL,
+                valueFrom: { secretKeyRef: { name: exhibitron-db-app, key: uri } } }
+            - { name: SESSION_SECRET,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: SESSION_SECRET } } }
+            - { name: ADMIN_EMAIL,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: ADMIN_EMAIL, optional: true } } }
+            # OIDC / SMTP / YouTube come from exhibitron-secrets once seeded;
+            # until then, the app starts but those features are inactive.
+            - { name: OIDC_ISSUER,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: OIDC_ISSUER, optional: true } } }
+            - { name: OIDC_CLIENT_ID,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: OIDC_CLIENT_ID, optional: true } } }
+            - { name: OIDC_CLIENT_SECRET,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: OIDC_CLIENT_SECRET, optional: true } } }
+            - { name: SMTP_HOST,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: SMTP_HOST, optional: true } } }
+            - { name: SMTP_USERNAME,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: SMTP_USERNAME, optional: true } } }
+            - { name: SMTP_PASSWORD,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: SMTP_PASSWORD, optional: true } } }
+            - { name: YOUTUBE_API_KEY,
+                valueFrom: { secretKeyRef: { name: exhibitron-secrets, key: YOUTUBE_API_KEY, optional: true } } }
+          # exhibitron has no HTTP health endpoint. TCP is good enough
+          # for "server is listening"; startup takes a while because
+          # MikroORM migrations run first.
+          readinessProbe:
+            tcpSocket: { port: 3001 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket: { port: 3001 }
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "2000m", memory: "2Gi" }

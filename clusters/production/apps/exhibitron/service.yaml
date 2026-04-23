@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: exhibitron
+  namespace: prod
+  labels:
+    app: exhibitron
+spec:
+  type: ClusterIP
+  selector:
+    app: exhibitron
+  ports:
+    - { name: http, port: 80, targetPort: 3001, protocol: TCP }
