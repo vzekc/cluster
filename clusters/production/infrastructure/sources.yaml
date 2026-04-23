@@ -69,3 +69,12 @@ metadata:
 spec:
   interval: 1h
   url: https://nats-io.github.io/k8s/helm/charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: kubernetes-dashboard
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://kubernetes.github.io/dashboard/

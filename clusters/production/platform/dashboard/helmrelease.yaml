@@ -1,0 +1,33 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+spec:
+  interval: 15m
+  releaseName: kubernetes-dashboard
+  chart:
+    spec:
+      chart: kubernetes-dashboard
+      version: "7.x"
+      sourceRef:
+        kind: HelmRepository
+        name: kubernetes-dashboard
+        namespace: flux-system
+  values:
+    # v3 dashboard is a microservice bundle: api, web, auth, metrics-scraper,
+    # kong gateway. Default chart settings are reasonable; we just wire the
+    # Ingress ourselves rather than using chart.ingress.enabled (gives us
+    # cleaner control over annotations and cert wiring).
+    app:
+      mode: "dashboard"
+      # Make the kong gateway listen on plain HTTP; Traefik terminates TLS.
+      tls:
+        enabled: false
+    kong:
+      proxy:
+        http:
+          enabled: true
+        tls:
+          enabled: false
+        type: ClusterIP
