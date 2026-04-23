@@ -9,3 +9,4 @@ resources:
   - service-admin.yaml
   - ingress.yaml
   - sealed-secrets.yaml
+  - apply-job.yaml

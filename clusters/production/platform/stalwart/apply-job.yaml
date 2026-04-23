@@ -1,0 +1,285 @@
+# One-shot Kubernetes Job that declaratively configures Stalwart by
+# POSTing JMAP batches against /jmap with HTTP Basic auth.
+#
+# Why not one big batch: JMAP creation-id back-references (`#cid`) are
+# scoped within a single method call, so cross-object references like
+# Domain.certificateManagement.acmeProviderId → AcmeProvider.id cannot
+# live in one /set call and cannot traverse to nested paths via JMAP's
+# argument-level result references. So we chain requests: query the
+# existing state, create what's missing, reuse IDs in later calls.
+#
+# Idempotency: each ensure_* step first queries by the natural key
+# (AcmeProvider by directory URL, Domain by name, NetworkListener by
+# bind, etc.). If found, reuse the ID. If not, create. That means
+# re-running the Job on redeploy is a no-op when state already matches,
+# which also makes it safe against config drift from webadmin edits.
+#
+# Destroys: none. Deliberate. Mail-server state is valuable; plan
+# changes that require removal of existing objects are operator-driven,
+# not GitOps-driven.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stalwart-apply
+  namespace: platform
+  labels:
+    app: stalwart
+    component: apply-plan
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: stalwart
+        component: apply-plan
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: apply
+          # curlimages/curl has curl but not jq; alpine + apk install
+          # both once. Keeps the image tiny (~8 MB) and obvious.
+          image: alpine:3.20
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: FALLBACK_ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stalwart-secrets
+                  key: FALLBACK_ADMIN_SECRET
+            - name: JMAP
+              value: http://stalwart-admin.platform.svc.cluster.local/jmap
+            # `d333333` is the baked-in admin account id the server
+            # uses for its registry singletons. Verified via
+            # /jmap/session.accounts.
+            - name: ACCT
+              value: d333333
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              apk add --no-cache curl jq >/dev/null
+
+              AUTH="admin:$FALLBACK_ADMIN_SECRET"
+
+              # Wait for Stalwart's HTTP listener.
+              echo "Waiting for $JMAP/session ..."
+              for i in $(seq 1 60); do
+                if curl -sfS -u "$AUTH" "$JMAP/session" >/dev/null 2>&1; then
+                  echo "ready."
+                  break
+                fi
+                sleep 2
+              done
+
+              # Helpers -------------------------------------------------
+              # POST one JMAP request from stdin, return the response.
+              jpost() {
+                curl -sSf -u "$AUTH" -H 'Content-Type: application/json' \
+                  -X POST --data @- "$JMAP"
+              }
+              # Extract the id of the first created object in a /set response.
+              created_id() {
+                jq -r ".methodResponses[0][1].created[].id // empty" <<< "$1"
+              }
+              # Extract an object id from a response by scanning *any*
+              # /get call's list (there may be a /query at index 0 and a
+              # /get at index 1, or just a /get at index 0).
+              # $1=response, $2=jq-filter (e.g. '.name == "foo"')
+              get_id_by() {
+                jq -r "[.methodResponses[] | select(.[0] | endswith(\"/get\")) | .[1].list[]?] | map(select($2)) | .[0].id // empty" <<< "$1"
+              }
+              # Fail the Job if a /set reported notCreated (other than
+              # alreadyExists). "alreadyExists" here means another runner
+              # or a prior Job already landed the same object — safe.
+              assert_created_ok() {
+                # $1=response, $2=label
+                notok=$(jq -r '.methodResponses[0][1].notCreated // {} | to_entries[] | select(.value.type != "alreadyExists") | @json' <<< "$1")
+                if [ -n "$notok" ]; then
+                  echo "FATAL: $2 create failed:"
+                  echo "$notok"
+                  exit 1
+                fi
+              }
+
+              # Phase 1: AcmeProvider ----------------------------------
+              echo "== Phase 1: AcmeProvider"
+              resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:AcmeProvider/query",{"accountId":"$ACCT"},"c0"],
+                ["x:AcmeProvider/get",{"accountId":"$ACCT","#ids":{"resultOf":"c0","name":"x:AcmeProvider/query","path":"/ids"}},"c1"]
+              ]}
+              EOF
+              )
+              acme_id=$(jq -r '.methodResponses[1][1].list[] | select(.directory == "https://acme-v02.api.letsencrypt.org/directory") | .id' <<< "$resp" | head -1)
+              if [ -z "$acme_id" ]; then
+                resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:AcmeProvider/set",{"accountId":"$ACCT","create":{"acme_le":{
+                  "directory":"https://acme-v02.api.letsencrypt.org/directory",
+                  "challengeType":"Http01",
+                  "contact":{"mailto:postmaster@classic-computing.de":true},
+                  "renewBefore":"R23",
+                  "maxRetries":5
+                }}},"c0"]
+              ]}
+              EOF
+              )
+                assert_created_ok "$resp" AcmeProvider
+                acme_id=$(created_id "$resp")
+                echo "  created AcmeProvider id=$acme_id"
+              else
+                echo "  reuse AcmeProvider id=$acme_id"
+              fi
+
+              # Phase 2: Domains ---------------------------------------
+              # hasso.classic-computing.de, veron.classic-computing.de
+              # (both subdomain MXes), plus post.classic-computing.de
+              # (the mail hostname — lets Stalwart's ACME issue for it).
+              echo "== Phase 2: Domains"
+              resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:Domain/query",{"accountId":"$ACCT"},"c0"],
+                ["x:Domain/get",{"accountId":"$ACCT","#ids":{"resultOf":"c0","name":"x:Domain/query","path":"/ids"},"properties":["name"]},"c1"]
+              ]}
+              EOF
+              )
+              existing_names=$(jq -r '.methodResponses[1][1].list[].name' <<< "$resp")
+              missing=""
+              for d in hasso.classic-computing.de veron.classic-computing.de post.classic-computing.de; do
+                if ! echo "$existing_names" | grep -qx "$d"; then
+                  missing="$missing $d"
+                fi
+              done
+
+              if [ -n "$missing" ]; then
+                # Build a `create` map on the fly.
+                create=$(
+                  printf '{'
+                  first=1
+                  for d in $missing; do
+                    key=$(echo "$d" | tr '.' '_')
+                    # post subdomain: manual DKIM (we don't sign as post)
+                    if [ "$d" = "post.classic-computing.de" ]; then
+                      dkim='{"@type":"Manual"}'
+                      sub='{"@type":"Disabled"}'
+                    else
+                      dkim='{"@type":"Automatic","algorithms":{"Dkim1RsaSha256":true},"selectorTemplate":"default","rotateAfter":7776000000,"retireAfter":604800000,"deleteAfter":2592000000}'
+                      sub='{"@type":"Enabled"}'
+                    fi
+                    [ $first -eq 1 ] || printf ','
+                    first=0
+                    printf '"%s":{"name":"%s","isEnabled":true,"aliases":{},"allowRelaying":false,"certificateManagement":{"@type":"Automatic","acmeProviderId":"%s","subjectAlternativeNames":{}},"dkimManagement":%s,"dnsManagement":{"@type":"Manual"},"subAddressing":%s}' "$key" "$d" "$acme_id" "$dkim" "$sub"
+                  done
+                  printf '}'
+                )
+                resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:Domain/set",{"accountId":"$ACCT","create":$create},"c0"]
+              ]}
+              EOF
+              )
+                assert_created_ok "$resp" Domain
+                echo "  created:$missing"
+              else
+                echo "  all domains present"
+              fi
+
+              # Refresh list to pull every domain's real id.
+              resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:Domain/query",{"accountId":"$ACCT"},"c0"],
+                ["x:Domain/get",{"accountId":"$ACCT","#ids":{"resultOf":"c0","name":"x:Domain/query","path":"/ids"},"properties":["name","id"]},"c1"]
+              ]}
+              EOF
+              )
+              hasso_id=$(get_id_by "$resp" '.name == "hasso.classic-computing.de"')
+
+              # Phase 3: SystemSettings + HTTP --------------------------
+              # SystemSettings.proxyTrustedNetworks is for the HAProxy
+              # PROXY protocol (a TCP preamble), NOT X-Forwarded-For.
+              # Traefik forwards via X-Forwarded-*, so we leave that
+              # setting empty and flip x:Http.useXForwarded instead.
+              echo "== Phase 3: SystemSettings + Http"
+              resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:SystemSettings/set",{"accountId":"$ACCT","update":{"singleton":{
+                  "defaultHostname":"post.classic-computing.de",
+                  "defaultDomainId":"$hasso_id",
+                  "proxyTrustedNetworks":{}
+                }}},"c0"],
+                ["x:Http/set",{"accountId":"$ACCT","update":{"singleton":{
+                  "useXForwarded":true
+                }}},"c1"]
+              ]}
+              EOF
+              )
+              notok=$(jq -r '[.methodResponses[] | .[1].notUpdated // {} | to_entries[]] | map(@json) | .[]?' <<< "$resp")
+              if [ -n "$notok" ]; then
+                echo "FATAL: SystemSettings / Http update failed:"
+                echo "$notok"
+                exit 1
+              fi
+              echo "  SystemSettings + Http reconciled"
+
+              # Phase 4: extra NetworkListeners ------------------------
+              # Auto-seeded defaults (25/465/993/995/4190/443/8080) are
+              # left alone; we only add the gaps we need.
+              echo "== Phase 4: NetworkListeners (additions)"
+              resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:NetworkListener/query",{"accountId":"$ACCT"},"c0"],
+                ["x:NetworkListener/get",{"accountId":"$ACCT","#ids":{"resultOf":"c0","name":"x:NetworkListener/query","path":"/ids"},"properties":["bind"]},"c1"]
+              ]}
+              EOF
+              )
+              existing_binds=$(jq -r '.methodResponses[1][1].list[].bind | keys[]' <<< "$resp")
+
+              want_ln='{"ln_imap143":{"name":"imap-starttls","protocol":"imap","bind":{"[::]:143":true},"useTls":true,"tlsImplicit":false},
+                       "ln_submit587":{"name":"submission","protocol":"smtp","bind":{"[::]:587":true},"useTls":true,"tlsImplicit":false},
+                       "ln_acme80":{"name":"acme-http","protocol":"http","bind":{"[::]:80":true},"useTls":false,"tlsImplicit":false}}'
+              create=$(jq -c --argjson want "$want_ln" --arg binds "$existing_binds" '
+                ($binds | split("\n")) as $have
+                | $want | to_entries
+                | map(select((.value.bind | keys[0]) as $b | $have | index($b) | not))
+                | from_entries
+              ' <<< '{}')
+
+              if [ "$create" != "{}" ] && [ -n "$create" ]; then
+                resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:NetworkListener/set",{"accountId":"$ACCT","create":$create},"c0"]
+              ]}
+              EOF
+              )
+                assert_created_ok "$resp" NetworkListener
+                echo "  created: $(jq -r 'keys | join(",")' <<< "$create")"
+              else
+                echo "  all extra listeners present"
+              fi
+
+              # Phase 5: Tracer ----------------------------------------
+              echo "== Phase 5: Tracer (stdout)"
+              resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:Tracer/query",{"accountId":"$ACCT"},"c0"]
+              ]}
+              EOF
+              )
+              if [ "$(jq -r '.methodResponses[0][1].ids | length' <<< "$resp")" = "0" ]; then
+                resp=$(jpost <<EOF
+              {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
+                ["x:Tracer/set",{"accountId":"$ACCT","create":{"tracer_stdout":{
+                  "@type":"Stdout","enable":true,"ansi":false,"buffered":false,"multiline":false,
+                  "lossy":false,"level":"info","events":{},"eventsPolicy":"exclude"
+                }}},"c0"]
+              ]}
+              EOF
+              )
+                assert_created_ok "$resp" Tracer
+                echo "  created Tracer"
+              else
+                echo "  Tracer already set"
+              fi
+
+              echo "All phases complete."
