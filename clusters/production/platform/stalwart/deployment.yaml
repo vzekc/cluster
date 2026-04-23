@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stalwart
+  namespace: platform
+  labels:
+    app: stalwart
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate) because:
+  #   1. The data PVC is RWO and cannot be mounted by two pods.
+  #   2. Mail delivery is stateful — two Stalwart processes against one
+  #      Postgres would race on the queue and double-deliver.
+  strategy: { type: Recreate }
+  selector:
+    matchLabels:
+      app: stalwart
+  template:
+    metadata:
+      labels:
+        app: stalwart
+      annotations:
+        resource.opentelemetry.io/service.name: stalwart
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        # Stalwart's container image runs as a dedicated non-root user;
+        # fsGroup lets the pod write to the PVC mount and read the TLS
+        # secret regardless of the image's internal uid.
+        fsGroup: 1000
+      # hostPort binds the five mail ports directly to the agent node's
+      # public interface (the Hetzner firewall opens them — see
+      # cluster-infra/terraform/main.tf). This takes the LB out of the
+      # mail path entirely so:
+      #   - post.classic-computing.de A-record == rDNS PTR (forward-confirmed)
+      #   - source IPs reach Stalwart unmodified (good for SPF + rate limits)
+      # hostPort pins this pod to whichever node has those ports free —
+      # fine with one agent; revisit if we scale out.
+      containers:
+        - name: stalwart
+          # Docker Hub official image. Pin to a tagged release after the
+          # initial boot succeeds — `latest` is fine for bring-up but
+          # defeats reproducibility for Flux reconciles.
+          image: stalwartlabs/stalwart:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: smtp,       containerPort: 25,  hostPort: 25  }
+            - { name: smtps,      containerPort: 465, hostPort: 465 }
+            - { name: submission, containerPort: 587, hostPort: 587 }
+            - { name: imap,       containerPort: 143, hostPort: 143 }
+            - { name: imaps,      containerPort: 993, hostPort: 993 }
+            # :8080 is cluster-internal — Traefik reaches it through the
+            # stalwart-admin ClusterIP Service, not via hostPort.
+            - { name: http,       containerPort: 8080 }
+          env:
+            # Postgres password for the `postgres` store in config.toml.
+            - name: STORE_PASSWORD
+              valueFrom: { secretKeyRef: { name: stalwart-db-app, key: password } }
+            # Bootstrap admin password — seed via SealedSecret before
+            # first deploy (see sealed-secrets.yaml).
+            - name: FALLBACK_ADMIN_SECRET
+              valueFrom: { secretKeyRef: { name: stalwart-secrets, key: FALLBACK_ADMIN_SECRET } }
+          volumeMounts:
+            - { name: config, mountPath: /opt/stalwart/etc, readOnly: true }
+            - { name: data,   mountPath: /var/lib/stalwart }
+            - { name: tls,    mountPath: /etc/stalwart/tls, readOnly: true }
+          # TCP probe on the HTTP admin port. Cheap, no auth required
+          # for the probe path (Stalwart answers on :8080 as soon as the
+          # listeners are up).
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "2000m", memory: "2Gi" }
+      volumes:
+        - name: config
+          configMap:
+            name: stalwart-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: stalwart-data
+        - name: tls
+          secret:
+            secretName: stalwart-mail-tls
+            defaultMode: 0440

@@ -1,0 +1,28 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: stalwart-db
+  namespace: platform
+spec:
+  inheritedMetadata:
+    annotations:
+      resource.opentelemetry.io/service.name: stalwart-db
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  storage:
+    size: 20Gi
+    storageClass: hcloud-volumes
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+  bootstrap:
+    initdb:
+      database: stalwart
+      owner: stalwart
+      # CNPG auto-generates the password and exposes it via
+      # Secret/stalwart-db-app (keys: username, password, host, port,
+      # dbname, uri, jdbc-uri). Stalwart's ConfigMap reads the password
+      # out of STORE_PASSWORD (set via env from that Secret).
+  monitoring:
+    enablePodMonitor: false
