@@ -4,148 +4,42 @@ metadata:
   name: stalwart-config
   namespace: platform
 data:
-  # Bootstrap config only. Stalwart reads this TOML at startup and stores
-  # *most* runtime configuration (users, domains, ACLs, DKIM keys, ARC,
-  # outbound queue policy, relay rules) in the Postgres data store — so
-  # day-2 admin is done through the webadmin UI, not by editing this
-  # file. What lives here is strictly what's needed to bring Stalwart up:
-  # hostname, data/blob store wiring, listener/TLS bindings, a fallback
-  # admin so the webadmin is reachable on first boot.
+  # Stalwart 0.16 changed the config model: this file is ONLY a DataStore
+  # descriptor. Everything else (listeners, ACME, TLS certs, domains,
+  # DKIM keys, directories, admin users) lives inside the data store as
+  # typed objects and is managed via the webadmin or JMAP `x:*/set`
+  # calls. There is no longer a file-driven full-config mode.
   #
-  # `config.local-keys` pins which config paths are loaded from this file
-  # (and never overridden by the DB). Everything else is DB-backed.
+  # Workflow for this cluster:
+  #   1. This ConfigMap gets mounted at /etc/stalwart/config.json
+  #      (matches the image entrypoint `stalwart --config /etc/stalwart/config.json`).
+  #   2. Stalwart boots, connects to stalwart-db, auto-seeds default
+  #      listeners/settings on first run.
+  #   3. Operator logs into https://stalwart.classic-computing.de with
+  #      admin/<FALLBACK_ADMIN_SECRET> and finishes setup through the UI
+  #      (listeners, ACME for post.classic-computing.de, domains, DKIM).
+  #   4. Operator exports the resulting state to a backup, commits it
+  #      (see the planned init-container --import step). From that point
+  #      on rebuilds are fully declarative — any new pod reimports the
+  #      backup before serving traffic.
   #
-  # Interpolation:
-  #   %{env:VAR}%         — read from process environment
-  #   %{file:/path}%      — read file contents at startup
-  config.toml: |
-    [server]
-    hostname = "post.classic-computing.de"
-
-    # ------------------------------------------------------------------
-    # Stores
-    # ------------------------------------------------------------------
-    [store."postgres"]
-    type = "postgresql"
-    host = "stalwart-db-rw.platform.svc.cluster.local"
-    port = 5432
-    database = "stalwart"
-    user = "stalwart"
-    password = "%{env:STORE_PASSWORD}%"
-    tls.enable = false
-
-    # Blob store on the PVC. Keeping message bodies out of Postgres keeps
-    # the DB small and backups fast; raw RFC822 is opaque anyway.
-    [store."blobs"]
-    type = "fs"
-    path = "/var/lib/stalwart/blobs"
-
-    # ------------------------------------------------------------------
-    # Storage wiring: which logical store backs which subsystem.
-    # ------------------------------------------------------------------
-    [storage]
-    data = "postgres"
-    fts = "postgres"
-    lookup = "postgres"
-    blob = "blobs"
-    directory = "internal"
-
-    [directory."internal"]
-    type = "internal"
-    store = "postgres"
-
-    # ------------------------------------------------------------------
-    # TLS via Stalwart's built-in ACME client. cert-manager handles the
-    # admin UI cert (through Traefik) but not this one, because
-    # post.classic-computing.de points at the agent node IP — not at the
-    # LB where Traefik lives — so HTTP-01 has to be served locally.
-    # Stalwart owns port 80 (hostPort in the Deployment + Hetzner fw
-    # rule) and uses it to respond to Let's Encrypt's challenge.
-    # ------------------------------------------------------------------
-    [acme."letsencrypt"]
-    directory = "https://acme-v02.api.letsencrypt.org/directory"
-    challenge = "http-01"
-    contact = "mailto:postmaster@classic-computing.de"
-    domains = ["post.classic-computing.de"]
-    # Cert + key are written into the data store; survives pod restarts
-    # and rotates automatically before expiry.
-
-    [certificate."default"]
-    default = true
-    acme = "letsencrypt"
-
-    # ------------------------------------------------------------------
-    # Listeners. All bind to :: so they accept IPv4 and IPv6. The pod
-    # exposes these as hostPort on the agent node and the Hetzner
-    # firewall permits them (see cluster-infra/terraform/main.tf).
-    # ------------------------------------------------------------------
-
-    # ACME HTTP-01 challenge responder. Only serves /.well-known/acme-
-    # challenge/* — not the admin UI, which lives on :8080 behind
-    # Traefik. Stalwart recognizes this listener's role from the
-    # [acme.*] config above.
-    [server.listener."acme"]
-    bind = "[::]:80"
-    protocol = "http"
-
-    [server.listener."smtp"]
-    bind = "[::]:25"
-    protocol = "smtp"
-
-    [server.listener."smtps"]
-    bind = "[::]:465"
-    protocol = "smtp"
-    tls.implicit = true
-
-    [server.listener."submission"]
-    bind = "[::]:587"
-    protocol = "smtp"
-
-    [server.listener."imap"]
-    bind = "[::]:143"
-    protocol = "imap"
-
-    [server.listener."imaps"]
-    bind = "[::]:993"
-    protocol = "imap"
-    tls.implicit = true
-
-    # Admin / JMAP HTTP, terminated plain inside the pod. Traefik
-    # re-terminates TLS in front with stalwart-admin-tls, so the pod
-    # itself doesn't need TLS on :8080.
-    [server.listener."http"]
-    bind = "[::]:8080"
-    protocol = "http"
-    url = "https://stalwart.classic-computing.de"
-
-    # ------------------------------------------------------------------
-    # Fallback admin — lets us log into the webadmin on first boot to
-    # finish configuration. Once a real admin user exists in the
-    # directory, this can be removed. Password is read from env so it
-    # can live in a SealedSecret rather than this ConfigMap.
-    # ------------------------------------------------------------------
-    [authentication.fallback-admin]
-    user = "admin"
-    secret = "%{env:FALLBACK_ADMIN_SECRET}%"
-
-    [tracer."stdout"]
-    type = "stdout"
-    level = "info"
-    enable = true
-
-    # ------------------------------------------------------------------
-    # Pin: these keys are always read from this file, never from the DB.
-    # Everything else is loaded from the DB and editable via webadmin.
-    # ------------------------------------------------------------------
-    [config]
-    local-keys = [
-      "store.*",
-      "directory.*",
-      "storage.*",
-      "certificate.*",
-      "acme.*",
-      "server.hostname",
-      "server.listener.*",
-      "authentication.fallback-admin.*",
-      "tracer.*",
-    ]
+  # @type is the Stalwart schema's tagged-union discriminator. Valid
+  # values at top level: RocksDb | Sqlite | FoundationDb | PostgreSql | MySql.
+  # authSecret's `EnvironmentVariable` variant tells Stalwart to read
+  # the password from the named env var at startup — no string
+  # interpolation of ${VAR} is supported in the rest of the file.
+  config.json: |
+    {
+      "@type": "PostgreSql",
+      "host": "stalwart-db-rw.platform.svc.cluster.local",
+      "port": 5432,
+      "database": "stalwart",
+      "authUsername": "stalwart",
+      "authSecret": {
+        "@type": "EnvironmentVariable",
+        "variableName": "STORE_PASSWORD"
+      },
+      "useTls": false,
+      "poolMaxConnections": 10,
+      "timeout": 15000
+    }

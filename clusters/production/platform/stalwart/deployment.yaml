@@ -44,10 +44,11 @@ spec:
           image: stalwartlabs/stalwart:latest
           imagePullPolicy: IfNotPresent
           ports:
-            # :80 is exposed on the node for Stalwart's built-in ACME
-            # HTTP-01 challenge (see configmap.toml → [acme.*]). Stalwart
-            # obtains and rotates post.classic-computing.de's cert itself;
-            # cert-manager isn't in this path.
+            # :80 is exposed on the node for Stalwart's ACME HTTP-01
+            # challenge responder. The operator enables HTTP-01 in the
+            # webadmin during initial setup; until then this port is
+            # unbound inside the container (the Hetzner firewall still
+            # permits it — see cluster-infra/terraform/main.tf).
             - { name: acme,       containerPort: 80,  hostPort: 80  }
             - { name: smtp,       containerPort: 25,  hostPort: 25  }
             - { name: smtps,      containerPort: 465, hostPort: 465 }
@@ -58,15 +59,24 @@ spec:
             # stalwart-admin ClusterIP Service, not via hostPort.
             - { name: http,       containerPort: 8080 }
           env:
-            # Postgres password for the `postgres` store in config.toml.
+            # Postgres password, read by Stalwart directly via the
+            # DataStore's `{@type: EnvironmentVariable}` authSecret.
             - name: STORE_PASSWORD
               valueFrom: { secretKeyRef: { name: stalwart-db-app, key: password } }
-            # Bootstrap admin password — seed via SealedSecret before
-            # first deploy (see sealed-secrets.yaml).
+            # Admin password as the bare secret. Also composed into
+            # STALWART_RECOVERY_ADMIN below.
             - name: FALLBACK_ADMIN_SECRET
               valueFrom: { secretKeyRef: { name: stalwart-secrets, key: FALLBACK_ADMIN_SECRET } }
+            # Stalwart reads this to install a fallback superuser that
+            # works even against an empty registry (as on first boot).
+            # Without it Stalwart prints a random password to stdout
+            # once and we'd lose login if the pod restarts before setup.
+            - name: STALWART_RECOVERY_ADMIN
+              value: "admin:$(FALLBACK_ADMIN_SECRET)"
           volumeMounts:
-            - { name: config, mountPath: /opt/stalwart/etc, readOnly: true }
+            # Mount the ConfigMap at Stalwart 0.16's default config dir;
+            # the entrypoint is `stalwart --config /etc/stalwart/config.json`.
+            - { name: config, mountPath: /etc/stalwart, readOnly: true }
             - { name: data,   mountPath: /var/lib/stalwart }
           # TCP probe on the HTTP admin port. Cheap, no auth required
           # for the probe path (Stalwart answers on :8080 as soon as the
