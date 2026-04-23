@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: discourse
+  namespace: prod
+  annotations:
+    # Only the .k8s. host is registered with external-dns. The bare host
+    # discourse.classic-computing.de is configured here so the ingress
+    # answers for it as soon as DNS is flipped at cutover, but until
+    # then external-dns leaves the existing record alone.
+    external-dns.alpha.kubernetes.io/hostname: discourse.k8s.classic-computing.de
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - discourse.k8s.classic-computing.de
+        - discourse.classic-computing.de
+      secretName: discourse-tls
+  rules:
+    - host: discourse.k8s.classic-computing.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: discourse
+                port: { number: 80 }
+    - host: discourse.classic-computing.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: discourse
+                port: { number: 80 }
