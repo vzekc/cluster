@@ -5,4 +5,3 @@ resources:
   - postgres.yaml
   - deployment.yaml
   - service.yaml
-  - db-migration.yaml
