@@ -28,14 +28,15 @@ spec:
         # fsGroup lets the pod write to the PVC mount and read the TLS
         # secret regardless of the image's internal uid.
         fsGroup: 1000
-      # hostPort binds the five mail ports directly to the agent node's
-      # public interface (the Hetzner firewall opens them — see
-      # cluster-infra/terraform/main.tf). This takes the LB out of the
-      # mail path entirely so:
-      #   - post.classic-computing.de A-record == rDNS PTR (forward-confirmed)
-      #   - source IPs reach Stalwart unmodified (good for SPF + rate limits)
-      # hostPort pins this pod to whichever node has those ports free —
-      # fine with one agent; revisit if we scale out.
+      # hostPort binds everything Stalwart needs externally directly to
+      # the agent node's public interface (the Hetzner firewall opens
+      # those ports — see cluster-infra/terraform/main.tf). There is
+      # no Traefik ingress path: post.classic-computing.de resolves to
+      # the agent node's public IP, Stalwart terminates its own TLS.
+      # This keeps forward-confirmed rDNS aligned for mail and gives
+      # the admin UI the same public cert Stalwart's ACME is managing.
+      # Pins the pod to whichever node has these ports free — fine with
+      # one agent; revisit on scale-out.
       containers:
         - name: stalwart
           # Docker Hub official image. Pin to a tagged release after the
@@ -44,19 +45,21 @@ spec:
           image: stalwartlabs/stalwart:latest
           imagePullPolicy: IfNotPresent
           ports:
-            # :80 is exposed on the node for Stalwart's ACME HTTP-01
-            # challenge responder. The operator enables HTTP-01 in the
-            # webadmin during initial setup; until then this port is
-            # unbound inside the container (the Hetzner firewall still
-            # permits it — see cluster-infra/terraform/main.tf).
+            # :80 is Stalwart's ACME HTTP-01 challenge responder.
             - { name: acme,       containerPort: 80,  hostPort: 80  }
+            # :443 is the admin webadmin + JMAP over HTTPS. Stalwart's
+            # auto-seeded `https` listener (:443, implicit TLS, protocol
+            # http) serves this with whatever certificate its ACME has
+            # issued for post.classic-computing.de.
+            - { name: https,      containerPort: 443, hostPort: 443 }
             - { name: smtp,       containerPort: 25,  hostPort: 25  }
             - { name: smtps,      containerPort: 465, hostPort: 465 }
             - { name: submission, containerPort: 587, hostPort: 587 }
             - { name: imap,       containerPort: 143, hostPort: 143 }
             - { name: imaps,      containerPort: 993, hostPort: 993 }
-            # :8080 is cluster-internal — Traefik reaches it through the
-            # stalwart-admin ClusterIP Service, not via hostPort.
+            # :8080 stays cluster-internal for kubelet probes and the
+            # stalwart-apply Job's in-cluster JMAP calls — it's a plain
+            # HTTP endpoint so neither needs TLS.
             - { name: http,       containerPort: 8080 }
           env:
             # Postgres password, read by Stalwart directly via the

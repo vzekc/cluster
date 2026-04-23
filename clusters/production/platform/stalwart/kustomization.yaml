@@ -3,10 +3,8 @@ kind: Kustomization
 resources:
   - postgres.yaml
   - pvc.yaml
-  - certificate.yaml
   - configmap.yaml
   - deployment.yaml
   - service-admin.yaml
-  - ingress.yaml
   - sealed-secrets.yaml
   - apply-job.yaml
