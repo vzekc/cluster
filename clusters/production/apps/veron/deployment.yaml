@@ -17,6 +17,11 @@ spec:
       labels:
         app: veron
     spec:
+      # Kubernetes otherwise injects env vars for every Service in the
+      # namespace (<NAME>_PORT=tcp://ip:port, etc). That clobbers veron's
+      # own VERON_PORT config var. We don't use the link-style env for
+      # service discovery — DNS is fine — so turn them off.
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -28,6 +33,8 @@ spec:
           ports:
             - { name: tn3270, containerPort: 3270 }
           env:
+            - { name: VERON_HOST, value: "0.0.0.0" }
+            - { name: VERON_PORT, value: "3270" }
             # veron runs its migrations at process start via
             # (veron:initialize-db), which is invoked by start-from-env —
             # no separate migration Job. Connection details come from the
