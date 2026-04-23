@@ -1,0 +1,49 @@
+# Minimal SA used by vzekc/hasso's GHA workflow for rollout restart
+# after a new image is published. No Swank-style hot-reload for Node.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hasso-deployer
+  namespace: prod
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hasso-deployer
+  namespace: prod
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [apps]
+    resources: [deployments/status]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hasso-deployer
+  namespace: prod
+subjects:
+  - kind: ServiceAccount
+    name: hasso-deployer
+    namespace: prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hasso-deployer
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hasso-deployer-token
+  namespace: prod
+  annotations:
+    kubernetes.io/service-account.name: hasso-deployer
+type: kubernetes.io/service-account-token

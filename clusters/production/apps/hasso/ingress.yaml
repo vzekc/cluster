@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hasso
+  namespace: prod
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: hasso.k8s.classic-computing.de
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Photo uploads up to 50M (matches the old nginx config).
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [hasso.k8s.classic-computing.de]
+      secretName: hasso-tls
+  rules:
+    - host: hasso.k8s.classic-computing.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hasso
+                port: { number: 80 }

@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hasso-tls
+  namespace: prod
+spec:
+  secretName: hasso-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: hasso.k8s.classic-computing.de
+  dnsNames:
+    - hasso.k8s.classic-computing.de
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  duration: 2160h
+  renewBefore: 720h

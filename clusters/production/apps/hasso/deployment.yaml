@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hasso
+  namespace: prod
+  labels:
+    app: hasso
+spec:
+  replicas: 1
+  # Single-replica for now: the API uses an in-process EventEmitter for
+  # pairing / scan events, and a second pod would silently not receive
+  # them. Scaling out requires migrating those events onto NATS.
+  strategy: { type: Recreate }
+  selector:
+    matchLabels:
+      app: hasso
+  template:
+    metadata:
+      labels:
+        app: hasso
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: api
+          image: ghcr.io/vzekc/hasso-api:main
+          imagePullPolicy: Always
+          ports:
+            - { name: http-api, containerPort: 3002 }
+          env:
+            - { name: NODE_ENV,       value: "production" }
+            - { name: API_PORT,       value: "3002" }
+            - { name: LOG_LEVEL,      value: "info" }
+            - { name: PUBLIC_BASE_URL, value: "https://hasso.k8s.classic-computing.de" }
+            # CNPG builds the Postgres URI in the hasso-db-app Secret.
+            - { name: DATABASE_URL,
+                valueFrom: { secretKeyRef: { name: hasso-db-app, key: uri } } }
+            # Application-level secrets. Sealed-secrets manifest at
+            # apps/hasso/sealed-secrets.yaml (created out-of-band with
+            # `cluster-infra/scripts/seal.sh` — see README for format).
+            - { name: SESSION_SECRET,
+                valueFrom: { secretKeyRef: { name: hasso-secrets, key: SESSION_SECRET } } }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3002 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3002 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+        - name: web
+          image: ghcr.io/vzekc/hasso-web:main
+          imagePullPolicy: Always
+          ports:
+            - { name: http, containerPort: 80 }
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "10m",  memory: "32Mi" }
+            limits:   { cpu: "200m", memory: "128Mi" }

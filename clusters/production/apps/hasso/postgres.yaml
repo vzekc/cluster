@@ -1,0 +1,29 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: hasso-db
+  namespace: prod
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18
+  storage:
+    size: 20Gi
+    storageClass: hcloud-volumes
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+  bootstrap:
+    initdb:
+      database: hasso
+      owner: hasso
+  monitoring:
+    enablePodMonitor: false
+  # WAL archiving to Hetzner Object Storage when the bucket is provisioned.
+  # backup:
+  #   barmanObjectStore:
+  #     destinationPath: s3://vzekc-wal/hasso
+  #     endpointURL: https://nbg1.your-objectstorage.com
+  #     s3Credentials:
+  #       accessKeyId:     { name: hetzner-os, key: accessKeyId }
+  #       secretAccessKey: { name: hetzner-os, key: secretAccessKey }
