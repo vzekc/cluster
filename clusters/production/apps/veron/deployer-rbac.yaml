@@ -1,0 +1,55 @@
+# Minimal-RBAC service account used by the vzekc/veron GHA workflow to
+# trigger the in-pod soft-deploy after an image build succeeds. Can only
+# operate on the veron Deployment + pods in the dev namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: veron-deployer
+  namespace: dev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: veron-deployer
+  namespace: dev
+rules:
+  # List/find the veron pod, exec deploy.sh inside it.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create]
+  # Fallback: rollout restart the Deployment on soft-deploy failure.
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, patch]
+  - apiGroups: [apps]
+    resources: [deployments/status]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: veron-deployer
+  namespace: dev
+subjects:
+  - kind: ServiceAccount
+    name: veron-deployer
+    namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: veron-deployer
+---
+# Long-lived token for the ServiceAccount. k8s 1.24+ no longer auto-
+# creates these; we request one explicitly. Used as the bearer token in
+# the kubeconfig stored as GH secret KUBECONFIG_VERON_DEPLOY on vzekc/veron.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: veron-deployer-token
+  namespace: dev
+  annotations:
+    kubernetes.io/service-account.name: veron-deployer
+type: kubernetes.io/service-account-token
