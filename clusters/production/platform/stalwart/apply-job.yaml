@@ -35,6 +35,9 @@ spec:
         component: apply-plan
     spec:
       restartPolicy: OnFailure
+      # RBAC lives in rbac.yaml. Grants pods get/list/delete on the
+      # platform namespace so Phase 6 can delete the Stalwart pod.
+      serviceAccountName: stalwart-apply
       containers:
         - name: apply
           # curlimages/curl has curl but not jq; alpine + apk install
@@ -60,7 +63,9 @@ spec:
               set -eu
               # Alpine's ash lacks bash-isms the script below relies on
               # (here-strings `<<<`, mostly). Install bash and hand off.
-              apk add --no-cache curl jq bash >/dev/null
+              # kubectl is needed for Phase 6 (restart Stalwart pod);
+              # it's in Alpine's community repo.
+              apk add --no-cache curl jq bash kubectl >/dev/null
               exec /bin/bash -s <<'APPLY_EOF'
               set -eu
               AUTH="admin:$FALLBACK_ADMIN_SECRET"
@@ -199,10 +204,12 @@ spec:
               hasso_id=$(get_id_by "$resp" '.name == "hasso.classic-computing.de"')
 
               # Phase 3: SystemSettings + HTTP --------------------------
-              # SystemSettings.proxyTrustedNetworks is for the HAProxy
-              # PROXY protocol (a TCP preamble), NOT X-Forwarded-For.
-              # Traefik forwards via X-Forwarded-*, so we leave that
-              # setting empty and flip x:Http.useXForwarded instead.
+              # No proxy in front of Stalwart — clients reach the pod
+              # directly via hostPort on the agent's public IP. Both
+              # proxyTrustedNetworks (PROXY protocol) and useXForwarded
+              # (X-Forwarded-* headers) MUST be off or Stalwart will
+              # either wait for a preamble that never arrives or reject
+              # requests whose headers don't announce a forwarded client.
               echo "== Phase 3: SystemSettings + Http"
               resp=$(jpost <<EOF
               {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
@@ -212,7 +219,7 @@ spec:
                   "proxyTrustedNetworks":{}
                 }}},"c0"],
                 ["x:Http/set",{"accountId":"$ACCT","update":{"singleton":{
-                  "useXForwarded":true
+                  "useXForwarded":false
                 }}},"c1"]
               ]}
               EOF
@@ -262,14 +269,22 @@ spec:
               fi
 
               # Phase 5: Tracer ----------------------------------------
+              # On fresh boot Stalwart auto-seeds a `Log` tracer that
+              # writes to /var/log/stalwart/ — a directory that doesn't
+              # exist in the container, so every log line is silently
+              # dropped. We need a Stdout tracer *in addition* so kubectl
+              # logs actually surfaces anything. Look for @type:Stdout
+              # specifically, not for any tracer at all.
               echo "== Phase 5: Tracer (stdout)"
               resp=$(jpost <<EOF
               {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
-                ["x:Tracer/query",{"accountId":"$ACCT"},"c0"]
+                ["x:Tracer/query",{"accountId":"$ACCT"},"c0"],
+                ["x:Tracer/get",{"accountId":"$ACCT","#ids":{"resultOf":"c0","name":"x:Tracer/query","path":"/ids"}},"c1"]
               ]}
               EOF
               )
-              if [ "$(jq -r '.methodResponses[0][1].ids | length' <<< "$resp")" = "0" ]; then
+              has_stdout=$(jq -r '.methodResponses[1][1].list[]? | select(.["@type"] == "Stdout") | .id' <<< "$resp" | head -1)
+              if [ -z "$has_stdout" ]; then
                 resp=$(jpost <<EOF
               {"using":["urn:ietf:params:jmap:core"],"methodCalls":[
                 ["x:Tracer/set",{"accountId":"$ACCT","create":{"tracer_stdout":{
@@ -280,10 +295,27 @@ spec:
               EOF
               )
                 assert_created_ok "$resp" Tracer
-                echo "  created Tracer"
+                echo "  created Stdout Tracer"
               else
-                echo "  Tracer already set"
+                echo "  Stdout Tracer already set"
               fi
+
+              # Phase 6: Force Stalwart to pick up new settings --------
+              # Most DB-backed config (tracers, listeners, Http.useXForwarded)
+              # isn't hot-reloaded by Stalwart. We delete the pod so the
+              # Deployment recreates it and reads fresh settings. This
+              # runs AFTER all other phases succeeded — idempotent
+              # because if the config already matches on re-run, deleting
+              # the pod is a harmless cycle.
+              #
+              # Only matters when this Job actually changed anything; a
+              # more polished version would track "dirty" across phases
+              # and skip the restart when every phase was a no-op.
+              echo "== Phase 6: Restart Stalwart to apply new settings"
+              kubectl -n platform delete pod \
+                -l 'app=stalwart,component!=apply-plan' \
+                --ignore-not-found=true --wait=false
+              echo "  pod delete issued; Deployment will recreate"
 
               echo "All phases complete."
               APPLY_EOF

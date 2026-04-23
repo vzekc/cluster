@@ -7,4 +7,5 @@ resources:
   - deployment.yaml
   - service-admin.yaml
   - sealed-secrets.yaml
+  - rbac.yaml
   - apply-job.yaml
