@@ -1,0 +1,22 @@
+# Wildcard Certificate for *.k8s.classic-computing.de. Stored in the
+# traefik namespace so Traefik can mount it as the default TLS store;
+# individual Ingresses can reference this via tls.secretName as well.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: k8s-wildcard
+  namespace: traefik
+spec:
+  secretName: k8s-wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: "*.k8s.classic-computing.de"
+  dnsNames:
+    - "k8s.classic-computing.de"
+    - "*.k8s.classic-computing.de"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  duration: 2160h     # 90d — Let's Encrypt max
+  renewBefore: 720h   # 30d

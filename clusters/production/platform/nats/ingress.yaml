@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nats-ws
+  namespace: platform
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: nats-ws.k8s.classic-computing.de
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [nats-ws.k8s.classic-computing.de]
+      secretName: k8s-wildcard-tls
+  rules:
+    - host: nats-ws.k8s.classic-computing.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nats
+                port:
+                  number: 8080

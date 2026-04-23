@@ -1,0 +1,23 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: hcsi
+  namespace: kube-system
+spec:
+  interval: 15m
+  releaseName: hcsi
+  chart:
+    spec:
+      chart: hcloud-csi
+      version: "2.x"
+      sourceRef:
+        kind: HelmRepository
+        name: hcloud
+        namespace: flux-system
+  values:
+    storageClasses:
+      - name: hcloud-volumes
+        defaultStorageClass: true
+        reclaimPolicy: Retain
+        extraParameters:
+          fsFormatOptions: "-F"

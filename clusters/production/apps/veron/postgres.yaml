@@ -1,0 +1,32 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: veron-db
+  namespace: dev
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  storage:
+    size: 10Gi
+    storageClass: hcloud-volumes
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+  bootstrap:
+    initdb:
+      database: veron
+      owner: veron
+      # CNPG will auto-generate the password and write it to
+      # Secret/veron-db-app (keys: username, password, uri, ...).
+  monitoring:
+    enablePodMonitor: false
+  # WAL archiving to Hetzner Object Storage — wire up once the OS bucket
+  # credentials are in a SealedSecret. For now, PITR is disabled.
+  # backup:
+  #   barmanObjectStore:
+  #     destinationPath: s3://vzekc-wal/veron
+  #     endpointURL: https://nbg1.your-objectstorage.com
+  #     s3Credentials:
+  #       accessKeyId:     { name: hetzner-os, key: accessKeyId }
+  #       secretAccessKey: { name: hetzner-os, key: secretAccessKey }

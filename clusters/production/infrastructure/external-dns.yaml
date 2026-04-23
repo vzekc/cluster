@@ -1,0 +1,40 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  interval: 15m
+  releaseName: external-dns
+  chart:
+    spec:
+      chart: external-dns
+      version: "1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: external-dns
+        namespace: flux-system
+  values:
+    provider:
+      name: webhook
+      webhook:
+        image:
+          repository: ghcr.io/mconfalonieri/external-dns-hetzner-webhook
+          tag: "v0.7.1"
+        env:
+          - name: HETZNER_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: hetzner-dns-api-token
+                key: api-token
+    domainFilters:
+      - classic-computing.de
+    policy: sync
+    registry: txt
+    txtOwnerId: vzekc-prod
+    txtPrefix: "edns-"
+    sources:
+      - ingress
+      - service
+    interval: 1m
+    replicaCount: 1

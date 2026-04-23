@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: veron
+  namespace: dev
+  labels:
+    app: veron
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: veron
+  strategy:
+    type: Recreate  # 3270 is stateful; don't run two side-by-side
+  template:
+    metadata:
+      labels:
+        app: veron
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: veron
+          image: ghcr.io/vzekc/veron:main
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: tn3270, containerPort: 3270 }
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: veron-db-app
+                  key: uri
+            - name: NATS_URL
+              value: nats://nats.platform.svc.cluster.local:4222
+          readinessProbe:
+            tcpSocket: { port: 3270 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 3270 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }

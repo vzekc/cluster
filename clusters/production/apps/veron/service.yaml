@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: veron
+  namespace: dev
+  labels:
+    app: veron
+spec:
+  type: ClusterIP  # cluster-internal while in test; port-forward to reach 3270
+  selector:
+    app: veron
+  ports:
+    - name: tn3270
+      port: 3270
+      targetPort: 3270
+      protocol: TCP

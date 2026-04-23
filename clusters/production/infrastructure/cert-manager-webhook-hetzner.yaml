@@ -1,0 +1,21 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cmwh-hetzner
+  namespace: cert-manager
+spec:
+  interval: 15m
+  releaseName: cmwh-hetzner
+  dependsOn:
+    - name: cert-manager
+      namespace: cert-manager
+  chart:
+    spec:
+      chart: cert-manager-webhook-hetzner
+      version: "1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: cmwh-hetzner
+        namespace: flux-system
+  values:
+    groupName: acme.classic-computing.de

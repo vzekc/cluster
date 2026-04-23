@@ -1,0 +1,42 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nats
+  namespace: platform
+spec:
+  interval: 15m
+  releaseName: nats
+  chart:
+    spec:
+      chart: nats
+      version: "1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: nats
+        namespace: flux-system
+  values:
+    config:
+      jetstream:
+        enabled: true
+        fileStore:
+          pvc:
+            enabled: true
+            size: 10Gi
+            storageClassName: hcloud-volumes
+      cluster:
+        enabled: false
+      websocket:
+        enabled: true
+        port: 8080
+        noTLS: true      # TLS terminated at Ingress
+    # NATS accounts config lives in a SealedSecret (see sealed-accounts.yaml,
+    # created post-bootstrap via `scripts/seal.sh`). The chart mounts any
+    # Secret named here under /etc/nats-config/auth.
+    container:
+      env:
+        NATS_USER:
+          valueFrom:
+            secretKeyRef: { name: nats-bootstrap-user, key: user, optional: true }
+        NATS_PASSWORD:
+          valueFrom:
+            secretKeyRef: { name: nats-bootstrap-user, key: password, optional: true }

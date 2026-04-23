@@ -1,0 +1,44 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: hans@huebner.org
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - dns01:
+          webhook:
+            groupName: acme.classic-computing.de
+            solverName: hetzner
+            config:
+              secretName: hetzner-dns-api-token
+              secretKeyRef:
+                name: hetzner-dns-api-token
+                key: api-token
+              zoneName: classic-computing.de
+---
+# Staging issuer for iterating on cert config without hitting rate limits.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    email: hans@huebner.org
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - dns01:
+          webhook:
+            groupName: acme.classic-computing.de
+            solverName: hetzner
+            config:
+              secretName: hetzner-dns-api-token
+              secretKeyRef:
+                name: hetzner-dns-api-token
+                key: api-token
+              zoneName: classic-computing.de
