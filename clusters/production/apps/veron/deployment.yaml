@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: veron
-  namespace: dev
+  namespace: prod
   labels:
     app: veron
 spec:
@@ -56,7 +56,7 @@ spec:
             - { name: VERON_PORT, value: "3270" }
             # Swank listens on loopback only; reach it from your
             # laptop with:
-            #   kubectl port-forward -n dev deploy/veron 4005:4005
+            #   kubectl port-forward -n prod deploy/veron 4005:4005
             # Auth is your kubeconfig; no .slime-secret in play.
             - { name: SWANK_PORT, value: "4005" }
             # STARTTLS defaults to true; just supply the cert. The

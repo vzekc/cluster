@@ -17,7 +17,7 @@ clusters/
 
     infrastructure/         cluster-wide controllers
       sources.yaml          all HelmRepository resources (traefik, cnpg, jetstack, nats, headlamp, grafana, …)
-      namespaces.yaml       prod / dev / traefik / cert-manager / external-dns / cnpg-system / observability / platform
+      namespaces.yaml       prod / traefik / cert-manager / external-dns / cnpg-system / observability / platform
       sealed-secrets.yaml   SealedSecret controller
       hcloud-ccm.yaml       Hetzner cloud-controller-manager
       hcloud-csi.yaml       Hetzner CSI driver + default StorageClass
@@ -32,7 +32,7 @@ clusters/
       headlamp/             cluster admin UI at headlamp.k8s.classic-computing.de
 
     apps/                   tenant workloads
-      veron/                TN3270 at veron.k8s.classic-computing.de:3270 (dev namespace)
+      veron/                TN3270 at veron.k8s.classic-computing.de:3270 (prod)
       hasso/                photo catalogue at hasso.k8s.classic-computing.de (prod)
       exhibitron/           exhibition management at exhibitron.k8s.classic-computing.de (prod)
 ```
@@ -68,7 +68,7 @@ container apps) or `hasso/` (two-container pods). Required files:
 ```
 <app>/
   kustomization.yaml     list every file below
-  namespace.yaml         reuse `prod` / `dev` or declare a new one (also register in infrastructure/namespaces.yaml)
+  namespace.yaml         reuse `prod` or declare a new one (also register in infrastructure/namespaces.yaml)
   postgres.yaml          CNPG Cluster if the app needs a DB
   sealed-secrets.yaml    SESSION_SECRET and any app-specific creds (see "Sealing" below)
   certificate.yaml       cert-manager Certificate for the hostname

@@ -8,7 +8,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: veron-tls
-  namespace: dev
+  namespace: prod
 spec:
   secretName: veron-tls
   issuerRef:

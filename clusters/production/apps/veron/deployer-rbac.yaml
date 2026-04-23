@@ -1,17 +1,17 @@
 # Minimal-RBAC service account used by the vzekc/veron GHA workflow to
 # trigger the in-pod soft-deploy after an image build succeeds. Can only
-# operate on the veron Deployment + pods in the dev namespace.
+# operate on the veron Deployment + pods in the prod namespace.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: veron-deployer
-  namespace: dev
+  namespace: prod
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: veron-deployer
-  namespace: dev
+  namespace: prod
 rules:
   # List/find the veron pod, exec deploy.sh inside it.
   - apiGroups: [""]
@@ -37,11 +37,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: veron-deployer
-  namespace: dev
+  namespace: prod
 subjects:
   - kind: ServiceAccount
     name: veron-deployer
-    namespace: dev
+    namespace: prod
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -54,7 +54,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: veron-deployer-token
-  namespace: dev
+  namespace: prod
   annotations:
     kubernetes.io/service-account.name: veron-deployer
 type: kubernetes.io/service-account-token

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: veron
-  namespace: dev
+  namespace: prod
   labels:
     app: veron
   annotations:
@@ -16,7 +16,7 @@ spec:
   # NodePort so the hcloud_load_balancer_service (listen 3270, dest 32270
   # in cluster-infra/terraform/main.tf) can forward external TCP traffic
   # to the pod. kube-proxy still creates a ClusterIP on top for in-cluster
-  # callers that hit `veron.dev.svc` directly.
+  # callers that hit `veron.prod.svc` directly.
   type: NodePort
   externalTrafficPolicy: Local
   selector:
