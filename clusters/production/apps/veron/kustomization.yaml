@@ -4,8 +4,6 @@ resources:
   - namespace.yaml
   - postgres.yaml
   - certificate.yaml
-  - sealed-swank-secret.yaml
   - deployment.yaml
   - service.yaml
-  - swank-ingress.yaml
   - deployer-rbac.yaml
