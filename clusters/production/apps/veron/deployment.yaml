@@ -26,15 +26,25 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
+      # Soft-deploy is the default: scripts/soft-deploy-veron.sh (in the
+       # cluster-infra repo) execs into this pod and runs
+       # /opt/veron/deploy/deploy.sh which git-fetches origin/main and
+       # hot-reloads via Swank. Pod restarts only on liveness-probe
+       # failure (which automatically pulls the current image via
+       # imagePullPolicy: Always) or when somebody explicitly invokes
+       # `kubectl rollout restart deployment/veron`.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: veron
           image: ghcr.io/vzekc/veron:main
           imagePullPolicy: Always
           ports:
             - { name: tn3270, containerPort: 3270 }
+            - { name: swank,  containerPort: 4005 }
           env:
             - { name: VERON_HOST, value: "0.0.0.0" }
             - { name: VERON_PORT, value: "3270" }
+            - { name: SWANK_PORT, value: "4005" }
             # veron runs its migrations at process start via
             # (veron:initialize-db), which is invoked by start-from-env —
             # no separate migration Job. Connection details come from the
