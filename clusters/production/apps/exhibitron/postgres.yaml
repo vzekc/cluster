@@ -18,7 +18,15 @@ spec:
       database: exhibitron
       owner: exhibitron
       postInitSQL:
-        # MikroORM uses citext for case-insensitive emails.
+        # Runs against the postgres (maintenance) db as superuser —
+        # use it for cluster-level operations only.
+        # exhibitron migrations include a PowerDNS block that does
+        # `CREATE ROLE pdns`; grant CREATEROLE (not SUPERUSER) so
+        # those migrations work.
+        - ALTER USER exhibitron CREATEROLE
+      postInitApplicationSQL:
+        # Runs against the exhibitron db. MikroORM uses citext for
+        # case-insensitive emails; must be installed in this db.
         - CREATE EXTENSION IF NOT EXISTS citext
   monitoring:
     enablePodMonitor: false
