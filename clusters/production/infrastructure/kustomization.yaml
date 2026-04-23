@@ -8,6 +8,8 @@ resources:
   - hcloud-csi.yaml
   - cert-manager.yaml
   - cert-manager-webhook-hetzner.yaml
+  - cert-manager-webhook-hetzner-rbac.yaml
+  - sealed-hetzner-dns-api-token.yaml
   - cluster-issuer.yaml
   - external-dns.yaml
   - cloudnative-pg.yaml
