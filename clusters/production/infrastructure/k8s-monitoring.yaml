@@ -1,0 +1,102 @@
+# k8s-monitoring bundles Alloy + preconfigured pipelines for cluster
+# metrics, events, pod logs, and kube-state-metrics. Replaces the old
+# grafana-agent static-mode install (which shipped deprecated in 2024).
+#
+# Grafana Cloud creds come from the `grafana-cloud` Secret in this
+# namespace (created by cluster-infra/scripts/bootstrap-cluster.sh
+# from the env vars in ~/Development/vzekc/secrets.txt).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: k8s-monitoring
+  namespace: observability
+spec:
+  interval: 15m
+  releaseName: k8s-monitoring
+  chart:
+    spec:
+      chart: k8s-monitoring
+      version: "2.x"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    cluster:
+      name: vzekc-prod
+
+    # Each destination references the `grafana-cloud` Secret by key
+    # rather than baking creds into the HelmRelease values.
+    destinations:
+      - name: grafanacloud-metrics
+        type: prometheus
+        url: https://prometheus-prod-65-prod-eu-west-2.grafana.net/api/prom/push
+        auth:
+          type: basic
+          usernameKey: prometheus-user
+          passwordKey: api-key
+        secret:
+          create: false
+          name: grafana-cloud
+          namespace: observability
+      - name: grafanacloud-logs
+        type: loki
+        url: https://logs-prod-012.grafana.net/loki/api/v1/push
+        auth:
+          type: basic
+          usernameKey: loki-user
+          passwordKey: api-key
+        secret:
+          create: false
+          name: grafana-cloud
+          namespace: observability
+      - name: grafanacloud-traces
+        type: otlp
+        url: https://tempo-prod-10-prod-eu-west-2.grafana.net/tempo
+        auth:
+          type: basic
+          usernameKey: tempo-user
+          passwordKey: api-key
+        secret:
+          create: false
+          name: grafana-cloud
+          namespace: observability
+        metrics:
+          enabled: false
+        logs:
+          enabled: false
+        traces:
+          enabled: true
+
+    # What to collect
+    clusterMetrics:
+      enabled: true
+    clusterEvents:
+      enabled: true
+    podLogs:
+      enabled: true
+    nodeLogs:
+      enabled: false  # journald — skip; adds noise without much value here
+    kepler:
+      enabled: false  # no power metering
+    applicationObservability:
+      enabled: true   # OTLP receiver for app traces (veron, hasso, ...)
+      receivers:
+        otlp:
+          grpc:
+            enabled: true
+            port: 4317
+          http:
+            enabled: true
+            port: 4318
+
+    # Alloy components — the chart spins up specialized Alloy instances
+    # per concern (metrics, logs, receiver, etc.). Defaults are fine.
+    alloy-metrics:
+      enabled: true
+    alloy-singleton:
+      enabled: true
+    alloy-logs:
+      enabled: true
+    alloy-receiver:
+      enabled: true
