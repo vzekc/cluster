@@ -4,6 +4,9 @@ metadata:
   name: exhibitron-db
   namespace: prod
 spec:
+  inheritedMetadata:
+    annotations:
+      resource.opentelemetry.io/service.name: exhibitron-db
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:17
   storage:

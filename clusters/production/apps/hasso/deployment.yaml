@@ -18,6 +18,11 @@ spec:
     metadata:
       labels:
         app: hasso
+      annotations:
+        # Alloy tags each log line from this pod with service_name=hasso.
+        # Per-container (api vs web) is still visible via the container
+        # label that Alloy always attaches.
+        resource.opentelemetry.io/service.name: hasso
     spec:
       enableServiceLinks: false
       securityContext:

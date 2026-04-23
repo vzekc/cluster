@@ -16,6 +16,9 @@ spec:
     metadata:
       labels:
         app: veron
+      annotations:
+        # k8s-monitoring / Alloy uses this as the Grafana Cloud service_name.
+        resource.opentelemetry.io/service.name: veron
     spec:
       # Kubernetes otherwise injects env vars for every Service in the
       # namespace (<NAME>_PORT=tcp://ip:port, etc). That clobbers veron's
@@ -76,14 +79,17 @@ spec:
               valueFrom: { secretKeyRef: { name: veron-db-app, key: password } }
             - name: VERON_NATS_URL
               value: nats://nats.platform.svc.cluster.local:4222
+          # Probe swank (4005), not 3270. 3270 expects TN3270 negotiation;
+          # a bare TCP probe makes veron log a CL3270 error every cycle.
+          # Swank's accept() is plain and doesn't mind a quick close.
           readinessProbe:
-            tcpSocket: { port: 3270 }
+            tcpSocket: { port: 4005 }
             initialDelaySeconds: 30
-            periodSeconds: 10
-          livenessProbe:
-            tcpSocket: { port: 3270 }
-            initialDelaySeconds: 60
             periodSeconds: 30
+          livenessProbe:
+            tcpSocket: { port: 4005 }
+            initialDelaySeconds: 60
+            periodSeconds: 60
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1000m", memory: "1Gi" }

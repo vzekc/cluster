@@ -4,6 +4,9 @@ metadata:
   name: veron-db
   namespace: dev
 spec:
+  inheritedMetadata:
+    annotations:
+      resource.opentelemetry.io/service.name: veron-db
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:16
   storage:
