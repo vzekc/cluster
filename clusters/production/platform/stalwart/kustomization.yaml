@@ -4,8 +4,10 @@ resources:
   - postgres.yaml
   - pvc.yaml
   - configmap.yaml
+  - certificate.yaml
   - deployment.yaml
   - service-admin.yaml
   - sealed-secrets.yaml
   - rbac.yaml
   - apply-job.yaml
+  - cert-sync-cronjob.yaml

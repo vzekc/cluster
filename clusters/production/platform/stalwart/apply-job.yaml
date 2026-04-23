@@ -180,9 +180,15 @@ spec:
                       dkim='{"@type":"Automatic","algorithms":{"Dkim1RsaSha256":true},"selectorTemplate":"default","rotateAfter":7776000000,"retireAfter":604800000,"deleteAfter":2592000000}'
                       sub='{"@type":"Enabled"}'
                     fi
+                    # certificateManagement is Manual for every domain:
+                    # the one cert we actually need (for post.classic-
+                    # computing.de) comes from cert-manager and gets
+                    # pushed into Stalwart by Phase 7. Leaving this on
+                    # Automatic would queue AcmeRenewal tasks that
+                    # Stalwart 0.16 silently fails to dispatch.
                     [ $first -eq 1 ] || printf ','
                     first=0
-                    printf '"%s":{"name":"%s","isEnabled":true,"aliases":{},"allowRelaying":false,"certificateManagement":{"@type":"Automatic","acmeProviderId":"%s","subjectAlternativeNames":{}},"dkimManagement":%s,"dnsManagement":{"@type":"Manual"},"subAddressing":%s}' "$key" "$d" "$acme_id" "$dkim" "$sub"
+                    printf '"%s":{"name":"%s","isEnabled":true,"aliases":{},"allowRelaying":false,"certificateManagement":{"@type":"Manual"},"dkimManagement":%s,"dnsManagement":{"@type":"Manual"},"subAddressing":%s}' "$key" "$d" "$dkim" "$sub"
                   done
                   printf '}'
                 )

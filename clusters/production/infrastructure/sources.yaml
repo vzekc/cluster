@@ -78,3 +78,16 @@ metadata:
 spec:
   interval: 1h
   url: https://kubernetes-sigs.github.io/headlamp/
+---
+# cert-manager DNS-01 webhook for Hetzner DNS. We need DNS-01 (not
+# HTTP-01) for post.classic-computing.de because that hostname
+# resolves to the agent node (for mail forward-confirmed rDNS), not
+# to the LB where Traefik could serve an HTTP-01 challenge.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: cert-manager-webhook-hetzner
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://vadimkim.github.io/cert-manager-webhook-hetzner

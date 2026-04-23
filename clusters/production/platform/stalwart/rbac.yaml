@@ -18,6 +18,13 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, delete]
+  # Cert-sync CronJob mounts Secret/post-tls directly, so it doesn't
+  # need API-level secret get — but leave it in case we ever shift to
+  # kubectl-get-based sync.
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [post-tls]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
