@@ -1,16 +1,16 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: dashboard-tls
-  namespace: kubernetes-dashboard
+  name: headlamp-tls
+  namespace: headlamp
 spec:
-  secretName: dashboard-tls
+  secretName: headlamp-tls
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: dashboard.k8s.classic-computing.de
+  commonName: headlamp.k8s.classic-computing.de
   dnsNames:
-    - dashboard.k8s.classic-computing.de
+    - headlamp.k8s.classic-computing.de
   privateKey:
     algorithm: ECDSA
     size: 256

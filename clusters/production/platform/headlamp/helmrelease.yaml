@@ -1,0 +1,29 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  interval: 15m
+  releaseName: headlamp
+  chart:
+    spec:
+      chart: headlamp
+      version: "0.x"
+      sourceRef:
+        kind: HelmRepository
+        name: headlamp
+        namespace: flux-system
+  values:
+    # Default image is ghcr.io/headlamp-k8s/headlamp; listens on 4466.
+    # Auth is bearer-token: paste the admin SA token on the login screen.
+    # (Creating a dedicated SA in rbac.yaml, not using the chart's default.)
+    serviceAccount:
+      create: false
+      name: headlamp-admin
+    # TLS terminates at Traefik.
+    service:
+      type: ClusterIP
+    # Ingress handled by our own manifest (cleaner cert-manager wiring).
+    ingress:
+      enabled: false

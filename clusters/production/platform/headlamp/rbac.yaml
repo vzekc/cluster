@@ -1,29 +1,29 @@
 # Admin ServiceAccount + cluster-admin binding + long-lived token.
-# Use the token on the dashboard login screen.
+# Use the token on the Headlamp login screen.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: admin-user
-  namespace: kubernetes-dashboard
+  name: headlamp-admin
+  namespace: headlamp
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: admin-user
+  name: headlamp-admin
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: cluster-admin
 subjects:
   - kind: ServiceAccount
-    name: admin-user
-    namespace: kubernetes-dashboard
+    name: headlamp-admin
+    namespace: headlamp
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: admin-user-token
-  namespace: kubernetes-dashboard
+  name: headlamp-admin-token
+  namespace: headlamp
   annotations:
-    kubernetes.io/service-account.name: admin-user
+    kubernetes.io/service-account.name: headlamp-admin
 type: kubernetes.io/service-account-token
