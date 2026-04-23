@@ -91,18 +91,17 @@ spec:
               valueFrom: { secretKeyRef: { name: veron-db-app, key: password } }
             - name: VERON_NATS_URL
               value: nats://nats.platform.svc.cluster.local:4222
-          # Probe swank (4005) from inside the pod — swank binds
-          # 127.0.0.1 only, so tcp-socket probes from kubelet fail.
-          # bash's /dev/tcp/... opens a TCP connection as a built-in;
-          # exit 0 = listening, non-zero = connection refused.
+          # Probe TN3270 (3270). Swank 4005 crashes a worker thread on
+          # bare TCP probes (unhandled END-OF-FILE while reading the
+          # slime-secret). veron's connection handler already swallows
+          # pre-negotiation stream errors silently (see lispf), so a
+          # tcp-socket probe against 3270 is both benign and noise-free.
           readinessProbe:
-            exec:
-              command: ["bash", "-c", "</dev/tcp/127.0.0.1/4005"]
+            tcpSocket: { port: 3270 }
             initialDelaySeconds: 30
             periodSeconds: 30
           livenessProbe:
-            exec:
-              command: ["bash", "-c", "</dev/tcp/127.0.0.1/4005"]
+            tcpSocket: { port: 3270 }
             initialDelaySeconds: 60
             periodSeconds: 60
           resources:
