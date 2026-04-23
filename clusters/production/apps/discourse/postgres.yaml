@@ -1,0 +1,37 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: discourse-db
+  namespace: prod
+spec:
+  inheritedMetadata:
+    annotations:
+      resource.opentelemetry.io/service.name: discourse-db
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+  storage:
+    size: 20Gi
+    storageClass: hcloud-volumes
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+  bootstrap:
+    initdb:
+      database: discourse
+      owner: discourse
+      postInitSQL:
+        # Discourse migrations CREATE EXTENSION at the database level,
+        # which requires the role to own the database (already true via
+        # `owner: discourse`) plus permission to create extensions.
+        # Granting SUPERUSER is the simplest way that matches what
+        # the bundled postgres template does.
+        - ALTER USER discourse SUPERUSER
+      postInitApplicationSQL:
+        # Discourse needs both. Pre-creating saves the migration from
+        # needing extension-install permission on every fresh deploy.
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm
+        - CREATE EXTENSION IF NOT EXISTS hstore
+        - CREATE EXTENSION IF NOT EXISTS unaccent
+  monitoring:
+    enablePodMonitor: false

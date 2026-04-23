@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discourse-sidekiq
+  namespace: prod
+  labels:
+    app: discourse
+    component: sidekiq
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels:
+      app: discourse
+      component: sidekiq
+  template:
+    metadata:
+      labels:
+        app: discourse
+        component: sidekiq
+      annotations:
+        resource.opentelemetry.io/service.name: discourse-sidekiq
+    spec:
+      enableServiceLinks: false
+      # Co-schedule with discourse-web so both can mount the same
+      # ReadWriteOnce /shared PVC. Without this, the pod can land on a
+      # different node and stay Pending with a multi-attach error.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: discourse
+                  component: web
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: sidekiq
+          image: ghcr.io/vzekc/discourse:stable # {"$imagepolicy": "flux-system:discourse"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: DISCOURSE_ROLE, value: "sidekiq" }
+            - { name: LANG,           value: "en_US.UTF-8" }
+            - { name: LC_ALL,         value: "en_US.UTF-8" }
+            - { name: DISCOURSE_HOSTNAME, value: "discourse.classic-computing.de" }
+            - { name: DISCOURSE_DB_HOST,
+                valueFrom: { secretKeyRef: { name: discourse-db-app, key: host } } }
+            - { name: DISCOURSE_DB_PORT,
+                valueFrom: { secretKeyRef: { name: discourse-db-app, key: port } } }
+            - { name: DISCOURSE_DB_NAME,
+                valueFrom: { secretKeyRef: { name: discourse-db-app, key: dbname } } }
+            - { name: DISCOURSE_DB_USERNAME,
+                valueFrom: { secretKeyRef: { name: discourse-db-app, key: username } } }
+            - { name: DISCOURSE_DB_PASSWORD,
+                valueFrom: { secretKeyRef: { name: discourse-db-app, key: password } } }
+            - { name: DISCOURSE_REDIS_HOST, value: "discourse-redis.prod.svc.cluster.local" }
+            - { name: DISCOURSE_REDIS_PORT, value: "6379" }
+            - { name: DISCOURSE_SMTP_ADDRESS,  value: "mail.classic-computing.de" }
+            - { name: DISCOURSE_SMTP_PORT,     value: "25" }
+            - { name: DISCOURSE_SMTP_USER_NAME, value: "discourse" }
+            - { name: DISCOURSE_SMTP_DOMAIN,   value: "discourse.classic-computing.de" }
+            - { name: DISCOURSE_NOTIFICATION_EMAIL, value: "noreply@discourse.classic-computing.de" }
+            - { name: DISCOURSE_SMTP_PASSWORD,
+                valueFrom: { secretKeyRef: { name: discourse-secrets, key: DISCOURSE_SMTP_PASSWORD } } }
+            - { name: DISCOURSE_SECRET_KEY_BASE,
+                valueFrom: { secretKeyRef: { name: discourse-secrets, key: DISCOURSE_SECRET_KEY_BASE } } }
+          volumeMounts:
+            - { name: shared, mountPath: /shared }
+          readinessProbe:
+            exec:
+              command: ["pgrep", "-f", "sidekiq"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "sidekiq"]
+            initialDelaySeconds: 180
+            periodSeconds: 60
+          resources:
+            requests: { cpu: "200m",  memory: "512Mi" }
+            limits:   { cpu: "1500m", memory: "2Gi" }
+      volumes:
+        - name: shared
+          persistentVolumeClaim:
+            claimName: discourse-shared

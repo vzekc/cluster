@@ -1,0 +1,77 @@
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: discourse
+  namespace: flux-system
+spec:
+  image: ghcr.io/vzekc/discourse
+  interval: 5m
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: discourse
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: discourse
+  filterTags:
+    # Match stable-YYYYMMDD-HHMM-<sha7>; sort lexically (timestamp first)
+    # so the most recent build wins. Plain `:stable` is excluded — it
+    # moves and would never trigger a bump.
+    pattern: '^stable-(?P<ts>\d{8}-\d{4})-[0-9a-f]+$'
+    extract: '$ts'
+  policy:
+    alphabetical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: discourse-woltlab-sync
+  namespace: flux-system
+spec:
+  image: ghcr.io/vzekc/discourse-woltlab-sync
+  interval: 5m
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: discourse-woltlab-sync
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: discourse-woltlab-sync
+  filterTags:
+    pattern: '^stable-(?P<ts>\d{8}-\d{4})-[0-9a-f]+$'
+    extract: '$ts'
+  policy:
+    alphabetical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: discourse
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      messageTemplate: |
+        chore(discourse): bump image to {{range .Updated.Images}}{{println .}}{{end}}
+    push:
+      branch: main
+  update:
+    path: ./clusters/production/apps/discourse
+    strategy: Setters

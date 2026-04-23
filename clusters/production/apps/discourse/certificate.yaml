@@ -1,0 +1,23 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: discourse-tls
+  namespace: prod
+spec:
+  secretName: discourse-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: discourse.k8s.classic-computing.de
+  # Both names go on the cert from day one. The .classic-computing.de
+  # SAN is unused until cutover; an HTTP-01 challenge for it will only
+  # succeed once DNS points at the cluster.
+  dnsNames:
+    - discourse.k8s.classic-computing.de
+    - discourse.classic-computing.de
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  duration: 2160h
+  renewBefore: 720h
