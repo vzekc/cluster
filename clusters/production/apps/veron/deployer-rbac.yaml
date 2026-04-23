@@ -21,12 +21,17 @@ rules:
     resources: [pods/exec]
     verbs: [create]
   # Fallback: rollout restart the Deployment on soft-deploy failure.
+  # list/watch are needed by `kubectl rollout status` (it watches via
+  # the informer machinery, not a direct get).
   - apiGroups: [apps]
     resources: [deployments]
-    verbs: [get, patch]
+    verbs: [get, list, watch, patch]
   - apiGroups: [apps]
     resources: [deployments/status]
     verbs: [get]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
