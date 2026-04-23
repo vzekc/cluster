@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: discourse-woltlab-sync
+  namespace: prod
+  labels:
+    app: discourse
+    component: woltlab-sync
+spec:
+  # 02:00 UTC matches the legacy host timer's local-time slot well
+  # enough; the precise hour doesn't matter, just stay off the
+  # discourse-backup window that the old VM still runs at 02:30.
+  schedule: "0 2 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: discourse
+            component: woltlab-sync
+          annotations:
+            resource.opentelemetry.io/service.name: discourse-woltlab-sync
+        spec:
+          restartPolicy: Never
+          enableServiceLinks: false
+          containers:
+            - name: sync
+              image: ghcr.io/vzekc/discourse-woltlab-sync:stable # {"$imagepolicy": "flux-system:discourse-woltlab-sync"}
+              imagePullPolicy: IfNotPresent
+              env:
+                - { name: LANG,   value: "en_US.UTF-8" }
+                - { name: LC_ALL, value: "en_US.UTF-8" }
+                - { name: DISCOURSE_HOSTNAME, value: "discourse.classic-computing.de" }
+                # Same Discourse DB the web pod uses; the sync writes
+                # users straight in.
+                - { name: DISCOURSE_DB_HOST,
+                    valueFrom: { secretKeyRef: { name: discourse-db-app, key: host } } }
+                - { name: DISCOURSE_DB_PORT,
+                    valueFrom: { secretKeyRef: { name: discourse-db-app, key: port } } }
+                - { name: DISCOURSE_DB_NAME,
+                    valueFrom: { secretKeyRef: { name: discourse-db-app, key: dbname } } }
+                - { name: DISCOURSE_DB_USERNAME,
+                    valueFrom: { secretKeyRef: { name: discourse-db-app, key: username } } }
+                - { name: DISCOURSE_DB_PASSWORD,
+                    valueFrom: { secretKeyRef: { name: discourse-db-app, key: password } } }
+                - { name: DISCOURSE_REDIS_HOST, value: "discourse-redis.prod.svc.cluster.local" }
+                - { name: DISCOURSE_REDIS_PORT, value: "6379" }
+                # WoltLab MySQL password — read by sync_users.rb after
+                # the SSH tunnel comes up.
+                - { name: DB_PASSWORD,
+                    valueFrom: { secretKeyRef: { name: discourse-woltlab-sync, key: WOLTLAB_DB_PASSWORD } } }
+              volumeMounts:
+                # SSH key for forum.classic-computing.de. Mounted
+                # read-only at 0400 so OpenSSH accepts it.
+                - { name: ssh-key, mountPath: /root/.ssh, readOnly: true }
+              resources:
+                requests: { cpu: "100m", memory: "512Mi" }
+                limits:   { cpu: "1000m", memory: "1Gi" }
+          volumes:
+            - name: ssh-key
+              secret:
+                secretName: discourse-woltlab-sync
+                defaultMode: 0400
+                items:
+                  - { key: SSH_PRIVATE_KEY, path: id_rsa }

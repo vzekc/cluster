@@ -12,3 +12,4 @@ resources:
   - certificate.yaml
   - image-automation.yaml
   - deployer-rbac.yaml
+  - cronjob-woltlab-sync.yaml
