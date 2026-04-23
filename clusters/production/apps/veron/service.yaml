@@ -5,12 +5,25 @@ metadata:
   namespace: dev
   labels:
     app: veron
+  annotations:
+    # external-dns writes veron.k8s.classic-computing.de A/AAAA records
+    # to point at the load balancer so telnet veron.k8s.classic-computing.de
+    # resolves correctly. (The wildcard CNAME already points to the LB
+    # so this is really a no-op override that ensures the record exists
+    # and is explicit.)
+    external-dns.alpha.kubernetes.io/hostname: veron.k8s.classic-computing.de
 spec:
-  type: ClusterIP  # cluster-internal while in test; port-forward to reach 3270
+  # NodePort so the hcloud_load_balancer_service (listen 3270, dest 32270
+  # in cluster-infra/terraform/main.tf) can forward external TCP traffic
+  # to the pod. kube-proxy still creates a ClusterIP on top for in-cluster
+  # callers that hit `veron.dev.svc` directly.
+  type: NodePort
+  externalTrafficPolicy: Local
   selector:
     app: veron
   ports:
     - name: tn3270
       port: 3270
       targetPort: 3270
+      nodePort: 32270
       protocol: TCP
