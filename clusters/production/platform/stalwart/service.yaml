@@ -1,0 +1,65 @@
+# Two Services, per the Stalwart K8s guide:
+#
+#   stalwart-headless: clusterIP: None, mgmt port only. Used by the
+#     StatefulSet for stable per-pod DNS (`stalwart-0.stalwart-headless…`).
+#
+#   stalwart: type: LoadBalancer. Publishes every protocol port. The
+#     Hetzner CCM watches this and provisions a dedicated Hetzner LB
+#     with the annotations below (type lb21 for the 11-listener cap).
+#
+# Why a dedicated LB (not the existing ingress LB): lb11 (the ingress
+# type) is capped at 5 listeners, already used by 80/443/3270. Mail
+# alone wants 9+ listeners, so we spin up a second, larger LB here.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stalwart-headless
+  namespace: platform
+  labels:
+    app: stalwart
+spec:
+  clusterIP: None
+  selector:
+    app: stalwart
+    component: server
+  ports:
+    - { name: mgmt, port: 8080, targetPort: mgmt, protocol: TCP }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stalwart
+  namespace: platform
+  labels:
+    app: stalwart
+  annotations:
+    # Hetzner CCM reads these and provisions a new LB when the Service
+    # is created; deleting the Service deletes the LB. IP survives LB
+    # re-creation because CCM reuses an existing LB with the same name.
+    load-balancer.hetzner.cloud/name: vzekc-prod-stalwart
+    load-balancer.hetzner.cloud/location: nbg1
+    load-balancer.hetzner.cloud/type: lb21
+    load-balancer.hetzner.cloud/use-private-ip: "true"
+    load-balancer.hetzner.cloud/network-zone: eu-central
+    # Keeps the pod's client-source-IP visible (vital for Stalwart's
+    # SPF/IP-rate-limit logic and for mail server reputation).
+    load-balancer.hetzner.cloud/protocol: tcp
+    load-balancer.hetzner.cloud/uses-proxyprotocol: "false"
+spec:
+  type: LoadBalancer
+  selector:
+    app: stalwart
+    component: server
+  # ClusterFirst IPv4/IPv6 dual-stack; CCM picks from the Service as-is.
+  ports:
+    - { name: smtp,       port: 25,   targetPort: smtp,       protocol: TCP }
+    - { name: smtps,      port: 465,  targetPort: smtps,      protocol: TCP }
+    - { name: submission, port: 587,  targetPort: submission, protocol: TCP }
+    - { name: imap,       port: 143,  targetPort: imap,       protocol: TCP }
+    - { name: imaps,      port: 993,  targetPort: imaps,      protocol: TCP }
+    - { name: pop3,       port: 110,  targetPort: pop3,       protocol: TCP }
+    - { name: pop3s,      port: 995,  targetPort: pop3s,      protocol: TCP }
+    - { name: sieve,      port: 4190, targetPort: sieve,      protocol: TCP }
+    - { name: http,       port: 80,   targetPort: http,       protocol: TCP }
+    - { name: https,      port: 443,  targetPort: https,      protocol: TCP }

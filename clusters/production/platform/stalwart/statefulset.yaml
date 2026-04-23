@@ -1,0 +1,108 @@
+# Stalwart workload. Shape follows the official Kubernetes guide at
+# https://stalw.art/docs/cluster/orchestration/kubernetes/ — StatefulSet
+# (not Deployment) because each replica gets a stable pod name and its
+# own PVC via volumeClaimTemplates, which the server needs for its
+# local /var/lib/stalwart working dir (ACME state cache, extracted
+# webadmin zip, spool, …). Persistent mail data itself lives in Postgres.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stalwart
+  namespace: platform
+  labels:
+    app: stalwart
+spec:
+  replicas: 1
+  serviceName: stalwart-headless
+  selector:
+    matchLabels:
+      app: stalwart
+      component: server
+  template:
+    metadata:
+      labels:
+        app: stalwart
+        component: server
+      annotations:
+        resource.opentelemetry.io/service.name: stalwart
+    spec:
+      enableServiceLinks: false
+      # The upstream image ships as uid/gid 2000. fsGroup makes the
+      # volumeClaimTemplate PVC writable by that uid on first mount.
+      securityContext:
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+      containers:
+        - name: stalwart
+          image: stalwartlabs/stalwart:latest
+          imagePullPolicy: IfNotPresent
+          # Container ports match the upstream chart exactly. Each is
+          # exposed externally by the `stalwart` LoadBalancer Service.
+          ports:
+            - { name: smtp,       containerPort: 25   }
+            - { name: smtps,      containerPort: 465  }
+            - { name: submission, containerPort: 587  }
+            - { name: imap,       containerPort: 143  }
+            - { name: imaps,      containerPort: 993  }
+            - { name: pop3,       containerPort: 110  }
+            - { name: pop3s,      containerPort: 995  }
+            - { name: sieve,      containerPort: 4190 }
+            - { name: http,       containerPort: 80   }
+            - { name: https,      containerPort: 443  }
+            - { name: mgmt,       containerPort: 8080 }
+          env:
+            # Postgres password for the DataStore. Read from the CNPG-
+            # generated Secret, consumed by Stalwart via its
+            # EnvironmentVariable authSecret wrapper in config.json.
+            - name: STALWART_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: stalwart-db-app
+                  key: password
+            # Recovery admin: the sealed secret carries the password in
+            # key FALLBACK_ADMIN_SECRET (legacy name — the k8s Secret
+            # content is what matters, not the key name). k8s env-var
+            # expansion composes the `admin:<password>` shape Stalwart
+            # expects for STALWART_RECOVERY_ADMIN.
+            - name: FALLBACK_ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stalwart-secrets
+                  key: FALLBACK_ADMIN_SECRET
+            - name: STALWART_RECOVERY_ADMIN
+              value: "admin:$(FALLBACK_ADMIN_SECRET)"
+          volumeMounts:
+            - { name: config, mountPath: /etc/stalwart,     readOnly: true }
+            - { name: data,   mountPath: /var/lib/stalwart }
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: mgmt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: mgmt
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "2000m", memory: "2Gi" }
+      volumes:
+        - name: config
+          configMap:
+            name: stalwart-config
+  # Per-replica PVC. 20Gi is plenty for the non-database artifacts
+  # (webadmin zip, ACME cache, temp spool). Stalwart retains its PVC
+  # on rolling updates.
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: hcloud-volumes
+        resources:
+          requests:
+            storage: 20Gi
