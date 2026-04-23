@@ -20,8 +20,9 @@ spec:
       webhook:
         image:
           repository: ghcr.io/mconfalonieri/external-dns-hetzner-webhook
-          tag: "v0.7.1"
+          tag: "v0.12.1"
         env:
+          # Unified Cloud API token; webhook talks to api.hetzner.cloud.
           - name: HETZNER_API_KEY
             valueFrom:
               secretKeyRef:

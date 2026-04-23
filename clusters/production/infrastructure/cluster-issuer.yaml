@@ -9,16 +9,9 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:
-      - dns01:
-          webhook:
-            groupName: acme.classic-computing.de
-            solverName: hetzner
-            config:
-              secretName: hetzner-dns-api-token
-              secretKeyRef:
-                name: hetzner-dns-api-token
-                key: api-token
-              zoneName: classic-computing.de
+      - http01:
+          ingress:
+            class: traefik
 ---
 # Staging issuer for iterating on cert config without hitting rate limits.
 apiVersion: cert-manager.io/v1
@@ -32,13 +25,6 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-staging-key
     solvers:
-      - dns01:
-          webhook:
-            groupName: acme.classic-computing.de
-            solverName: hetzner
-            config:
-              secretName: hetzner-dns-api-token
-              secretKeyRef:
-                name: hetzner-dns-api-token
-                key: api-token
-              zoneName: classic-computing.de
+      - http01:
+          ingress:
+            class: traefik

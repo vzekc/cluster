@@ -7,9 +7,7 @@ resources:
   - hcloud-ccm.yaml
   - hcloud-csi.yaml
   - cert-manager.yaml
-  - cert-manager-webhook-hetzner.yaml
   - cluster-issuer.yaml
-  - wildcard-cert.yaml
   - external-dns.yaml
   - cloudnative-pg.yaml
   - grafana-agent.yaml

@@ -5,13 +5,14 @@ metadata:
   namespace: platform
   annotations:
     external-dns.alpha.kubernetes.io/hostname: nats-ws.k8s.classic-computing.de
+    cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
   tls:
     - hosts: [nats-ws.k8s.classic-computing.de]
-      secretName: k8s-wildcard-tls
+      secretName: nats-ws-tls
   rules:
     - host: nats-ws.k8s.classic-computing.de
       http:

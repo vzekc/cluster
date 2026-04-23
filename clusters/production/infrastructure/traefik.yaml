@@ -32,11 +32,6 @@ spec:
         exposedPort: 443
         tls:
           enabled: true
-    # Wildcard cert from cert-manager becomes the default TLS store.
-    tlsStore:
-      default:
-        defaultCertificate:
-          secretName: k8s-wildcard-tls
     providers:
       kubernetesIngress:
         allowExternalNameServices: true

@@ -28,15 +28,6 @@ spec:
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: cmwh-hetzner
-  namespace: flux-system
-spec:
-  interval: 1h
-  url: https://vadimkim.github.io/cert-manager-webhook-hetzner
----
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata:
   name: external-dns
   namespace: flux-system
 spec:
