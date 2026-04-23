@@ -58,8 +58,11 @@ spec:
           args:
             - |
               set -eu
-              apk add --no-cache curl jq >/dev/null
-
+              # Alpine's ash lacks bash-isms the script below relies on
+              # (here-strings `<<<`, mostly). Install bash and hand off.
+              apk add --no-cache curl jq bash >/dev/null
+              exec /bin/bash -s <<'APPLY_EOF'
+              set -eu
               AUTH="admin:$FALLBACK_ADMIN_SECRET"
 
               # Wait for Stalwart's HTTP listener.
@@ -283,3 +286,4 @@ spec:
               fi
 
               echo "All phases complete."
+              APPLY_EOF
