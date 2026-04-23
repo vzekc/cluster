@@ -15,10 +15,12 @@ spec:
   selector:
     matchLabels:
       app: stalwart
+      component: server
   template:
     metadata:
       labels:
         app: stalwart
+        component: server
       annotations:
         resource.opentelemetry.io/service.name: stalwart
     spec:

@@ -15,6 +15,7 @@ spec:
   type: ClusterIP
   selector:
     app: stalwart
+    component: server
   ports:
     - name: http
       port: 80

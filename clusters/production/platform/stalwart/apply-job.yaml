@@ -82,8 +82,13 @@ spec:
 
               # Helpers -------------------------------------------------
               # POST one JMAP request from stdin, return the response.
+              # --retry handles the case where a previous phase changed
+              # a NetworkListener or Http setting and Stalwart briefly
+              # dropped the admin :8080 to re-bind. Connect errors
+              # only — 4xx/5xx propagate (we want to see those).
               jpost() {
-                curl -sSf -u "$AUTH" -H 'Content-Type: application/json' \
+                curl -sSf --retry 5 --retry-delay 2 --retry-connrefused \
+                  -u "$AUTH" -H 'Content-Type: application/json' \
                   -X POST --data @- "$JMAP"
               }
               # Extract the id of the first created object in a /set response.
@@ -313,7 +318,7 @@ spec:
               # and skip the restart when every phase was a no-op.
               echo "== Phase 6: Restart Stalwart to apply new settings"
               kubectl -n platform delete pod \
-                -l 'app=stalwart,component!=apply-plan' \
+                -l 'app=stalwart,component=server' \
                 --ignore-not-found=true --wait=false
               echo "  pod delete issued; Deployment will recreate"
 
