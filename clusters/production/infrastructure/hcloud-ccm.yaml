@@ -17,15 +17,5 @@ spec:
   values:
     networking:
       enabled: true
-    # The `hcloud` Secret (token + network) is created by bootstrap-cluster.sh.
-    env:
-      HCLOUD_TOKEN:
-        valueFrom:
-          secretKeyRef:
-            name: hcloud
-            key: token
-      HCLOUD_NETWORK:
-        valueFrom:
-          secretKeyRef:
-            name: hcloud
-            key: network
+    # Token + network come from the `hcloud` Secret in kube-system, which
+    # bootstrap-cluster.sh creates. The chart wires those env vars itself.

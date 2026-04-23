@@ -14,10 +14,7 @@ spec:
         kind: HelmRepository
         name: hcloud
         namespace: flux-system
-  values:
-    storageClasses:
-      - name: hcloud-volumes
-        defaultStorageClass: true
-        reclaimPolicy: Retain
-        extraParameters:
-          fsFormatOptions: "-F"
+  values: {}
+  # Chart ships a sensible default StorageClass ("hcloud-volumes", reclaim
+  # Delete). If per-workload retention is needed, attach reclaimPolicy at
+  # the PVC level or define a second StorageClass in a PR.
