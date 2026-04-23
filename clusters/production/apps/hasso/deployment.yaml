@@ -21,10 +21,10 @@ spec:
     spec:
       enableServiceLinks: false
       securityContext:
+        # api runs as uid 10001 (set in its Dockerfile USER hasso);
+        # web runs as uid 101 (nginx-unprivileged). Leave both on the
+        # image defaults and only enforce non-root at the pod level.
         runAsNonRoot: true
-        runAsUser: 10001
-        runAsGroup: 10001
-        fsGroup: 10001
       containers:
         - name: api
           image: ghcr.io/vzekc/hasso-api:main
@@ -59,9 +59,9 @@ spec:
           image: ghcr.io/vzekc/hasso-web:main
           imagePullPolicy: Always
           ports:
-            - { name: http, containerPort: 80 }
+            - { name: http, containerPort: 8080 }
           readinessProbe:
-            httpGet: { path: /, port: 80 }
+            httpGet: { path: /, port: 8080 }
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
