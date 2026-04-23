@@ -41,10 +41,20 @@ spec:
           ports:
             - { name: tn3270, containerPort: 3270 }
             - { name: swank,  containerPort: 4005 }
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/veron/tls
+              readOnly: true
           env:
             - { name: VERON_HOST, value: "0.0.0.0" }
             - { name: VERON_PORT, value: "3270" }
             - { name: SWANK_PORT, value: "4005" }
+            # STARTTLS defaults to true; just supply the cert. The
+            # secret is reissued before expiry by cert-manager; veron
+            # currently loads the cert at startup only, so a reload
+            # (or pod restart) is needed to pick up a rotated cert.
+            - { name: VERON_TLS_CERT, value: "/etc/veron/tls/tls.crt" }
+            - { name: VERON_TLS_KEY,  value: "/etc/veron/tls/tls.key" }
             # veron runs its migrations at process start via
             # (veron:initialize-db), which is invoked by start-from-env —
             # no separate migration Job. Connection details come from the
@@ -73,3 +83,8 @@ spec:
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1000m", memory: "1Gi" }
+      volumes:
+        - name: tls
+          secret:
+            secretName: veron-tls
+            defaultMode: 0400

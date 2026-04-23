@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - postgres.yaml
+  - certificate.yaml
   - deployment.yaml
   - service.yaml

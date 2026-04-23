@@ -1,0 +1,25 @@
+# Let's Encrypt cert for the 3270 STARTTLS listener. cert-manager does
+# HTTP-01 through Traefik on port 80 — the LB routes 80 to Traefik, which
+# serves /.well-known/acme-challenge/* from a temporary Ingress created
+# by cert-manager during issuance. Nothing about 3270 is involved in
+# validation; Let's Encrypt just needs the hostname to be reachable via
+# HTTP, which the shared ingress LB already handles.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: veron-tls
+  namespace: dev
+spec:
+  secretName: veron-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: veron.k8s.classic-computing.de
+  dnsNames:
+    - veron.k8s.classic-computing.de
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  duration: 2160h     # 90d — Let's Encrypt max
+  renewBefore: 720h   # 30d
