@@ -29,6 +29,8 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
+        # fsGroup so veron can read the mounted TLS + slime-secret files.
+        fsGroup: 10001
         # Secret mounts get owned root:root by default; fsGroup is what
         # kubelet chowns the projected files to. Without this, veron
         # (uid 10001) can't read /etc/veron/tls/{tls.crt,tls.key}.
@@ -52,10 +54,21 @@ spec:
             - name: tls
               mountPath: /etc/veron/tls
               readOnly: true
+            # Swank reads ~/.slime-secret on startup and requires every
+            # connecting client to send this token as the first message.
+            # USER in the Dockerfile is uid 10001 with HOME=/home/veron.
+            - name: slime-secret
+              mountPath: /home/veron/.slime-secret
+              subPath: .slime-secret
+              readOnly: true
           env:
             - { name: VERON_HOST, value: "0.0.0.0" }
             - { name: VERON_PORT, value: "3270" }
             - { name: SWANK_PORT, value: "4005" }
+            # Bind Swank on 0.0.0.0 so Traefik's IngressRouteTCP can
+            # reach it. Auth is enforced by the .slime-secret token
+            # mounted into the user's home dir (see volumes below).
+            - { name: SWANK_HOST, value: "0.0.0.0" }
             # STARTTLS defaults to true; just supply the cert. The
             # secret is reissued before expiry by cert-manager; veron
             # currently loads the cert at startup only, so a reload
@@ -101,3 +114,10 @@ spec:
           secret:
             secretName: veron-tls
             defaultMode: 0440
+        - name: slime-secret
+          secret:
+            secretName: veron-swank-secret
+            defaultMode: 0440
+            items:
+              - key: slime-secret
+                path: .slime-secret

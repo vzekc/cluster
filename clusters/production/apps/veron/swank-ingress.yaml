@@ -1,0 +1,66 @@
+# Expose veron's Swank port to the internet via Traefik TCP routing with
+# TLS termination. Client -> TLS on :443 (host-SNI matched to
+# swank.k8s.classic-computing.de) -> Traefik unwraps -> plain TCP to
+# swank pod on :4005 -> swank checks .slime-secret on the connection.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: veron-swank
+  namespace: dev
+  labels:
+    app: veron
+  annotations:
+    # DNS record so swank.k8s.classic-computing.de resolves to the LB
+    # (the wildcard CNAME already does, but the explicit A/AAAA is
+    # more robust and makes the zone easier to audit).
+    external-dns.alpha.kubernetes.io/hostname: swank.k8s.classic-computing.de
+spec:
+  type: ClusterIP
+  selector:
+    app: veron
+  ports:
+    - name: swank
+      port: 4005
+      targetPort: 4005
+      protocol: TCP
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: veron-swank-tls
+  namespace: dev
+spec:
+  secretName: veron-swank-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: swank.k8s.classic-computing.de
+  dnsNames:
+    - swank.k8s.classic-computing.de
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  duration: 2160h
+  renewBefore: 720h
+---
+# Traefik shares port 443 across all HTTPS apps via SNI. This route
+# claims the swank.k8s.classic-computing.de hostname on 443 and does
+# TLS termination with the cert from cert-manager above, then forwards
+# plain TCP to the veron-swank Service.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: veron-swank
+  namespace: dev
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: HostSNI(`swank.k8s.classic-computing.de`)
+      services:
+        - name: veron-swank
+          port: 4005
+  tls:
+    secretName: veron-swank-tls
