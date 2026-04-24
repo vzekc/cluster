@@ -84,29 +84,22 @@ spec:
           volumeMounts:
             - { name: config, mountPath: /etc/stalwart,     readOnly: true }
             - { name: data,   mountPath: /var/lib/stalwart }
-          # Probes intentionally disabled during the bootstrap window.
-          # Stalwart's built-in intrusion-detection was banning the
-          # kubelet probe IP (10.42.x.x) after a few hours of every-10s
-          # /healthz/ready hits — which then caused the container to
-          # get killed by its own liveness probe failing with
-          # "connection reset by peer", then CrashLoopBackOff.
-          #
-          # To re-enable: log into the webadmin, add the pod CIDR
-          # (10.42.0.0/16) to Settings → Network → Security →
-          # Allowed IPs, then restore the readinessProbe + livenessProbe
-          # blocks below (HTTP GET /healthz/ready and /healthz/live on
-          # the `mgmt` port). Leaving the template in a comment to make
-          # that restore a copy-paste.
-          #
-          #   readinessProbe:
-          #     httpGet: { path: /healthz/ready, port: mgmt }
-          #     initialDelaySeconds: 5
-          #     periodSeconds: 30
-          #   livenessProbe:
-          #     httpGet: { path: /healthz/live, port: mgmt }
-          #     initialDelaySeconds: 30
-          #     periodSeconds: 60
-          #     failureThreshold: 5
+          # Kubelet HTTP probes. Safe only after pod CIDR
+          # (10.42.0.0/16) is in Stalwart's Allowed IPs list —
+          # without that, the intrusion detector bans the prober IP
+          # after a few hours of /healthz hits, and the container
+          # crashloops on its own liveness probe. Longer intervals
+          # than k8s defaults, to keep Stalwart's detector calm even
+          # if the allowlist is dropped.
+          readinessProbe:
+            httpGet: { path: /healthz/ready, port: mgmt }
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          livenessProbe:
+            httpGet: { path: /healthz/live, port: mgmt }
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 5
           resources:
             requests: { cpu: "200m", memory: "512Mi" }
             limits:   { cpu: "2000m", memory: "2Gi" }
