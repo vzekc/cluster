@@ -48,10 +48,16 @@ metadata:
     load-balancer.hetzner.cloud/uses-proxyprotocol: "false"
 spec:
   type: LoadBalancer
+  # Preserves real client source IPs — without this kube-proxy SNATs
+  # every external connection to the pod-network gateway (10.42.1.1),
+  # which Stalwart's intrusion detection then permanently bans after
+  # seeing "scan" behavior "from" that IP. With Local, CCM health-
+  # checks nodes that actually run the pod, and real client IPs flow
+  # to Stalwart for SPF / rate-limit / reputation logic.
+  externalTrafficPolicy: Local
   selector:
     app: stalwart
     component: server
-  # ClusterFirst IPv4/IPv6 dual-stack; CCM picks from the Service as-is.
   ports:
     - { name: smtp,       port: 25,   targetPort: smtp,       protocol: TCP }
     - { name: smtps,      port: 465,  targetPort: smtps,      protocol: TCP }
