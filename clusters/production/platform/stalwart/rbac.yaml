@@ -1,8 +1,0 @@
-# ServiceAccount + Role for the stalwart-cert-sync CronJob. No pod-
-# delete perms this time — the sync fires `ReloadTlsCertificates` via
-# JMAP so there's no need to roll the pod.
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: stalwart-apply
-  namespace: platform
