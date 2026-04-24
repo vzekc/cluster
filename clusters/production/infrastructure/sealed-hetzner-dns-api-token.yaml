@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: hetzner-dns-api-token
+  namespace: cert-manager
+spec:
+  encryptedData:
+    api-token: AgCDypozJgwezS8r5Un/3OiBwKO2MP6Db6912Rew1++kRoKNfqRTUMEG39xsBxOycJWJlUNjqWPHDwrbS/X/PdW4chxS73EL7grF5xDbKC8hQpHh1kE9StHtK+dZo+I49avmyhp1JTXC5jDPNuoOZAHJZbMberqKApJVdOdB22wITGFMT2vRvyqPeZOgSpZz140EKKHwW2usLhTBbDJu02BVW5zR/ioRGWDFhVPhlgHEi1YpPlmV9bOwlMBNq8CRY4SbLAc2qzMP/I1w4apiC7PxXn/Hg5xShQGQPztTOZF8yAbiPgAb3PhHskZ9ap9uDkIn3tchDniNMbgZysGKsySPCWS0ZasSovIzobmv3D5Qo/9mwrHu2KyeshrZoY7ZARdgmFkVJgYji/AqXGW2lPs2CdZcNVnt5r35XGs0PD+g4dktKRybXOcCL67hHJsIttfhrelOQ1IuxCpsM8zynafLRKM8CjciLhiD+7TD5ip0ca4BWiPEjFgxYJBrsZWhZ13sn9zJj1Ve7zcj2JGblvDEmN4gJqVUZK9mRf4O8RGoiKia4G3za0/pUhm4fAJW+04bFAI2m775BcbxZNtCtEcQVY63r38e2fcKScFO695k/YeRdQ+dQyPMUGtSEluDnF/lXnlR4ZabxhUIbNlMDYXBw0IIoZtqgIRfaf45a28Yelx4ufFTPba2iHvrBYjal8ygBqtBqI0vo4SAUFY5vJIdX82TnNVx2OiJRbl4sKR6wLhFCq4VpQJZpcOdukHdLmUcQNn0vL/hQOlroMnoDM07
+  template:
+    metadata:
+      name: hetzner-dns-api-token
+      namespace: cert-manager

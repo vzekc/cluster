@@ -13,6 +13,31 @@ spec:
           ingress:
             class: traefik
 ---
+# DNS-01 issuer via the Hetzner unified-API webhook. Use this for
+# hostnames that don't route through Traefik (i.e. anything not at the
+# ingress LB IP). The webhook is installed by
+# cert-manager-webhook-hetzner.yaml and reads the Hetzner Cloud API
+# token from Secret/hetzner-dns-api-token in this namespace.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-dns01-hetzner
+spec:
+  acme:
+    email: hans@huebner.org
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-dns01-hetzner-key
+    solvers:
+      - dns01:
+          webhook:
+            groupName: acme.hetzner.com
+            solverName: hetzner
+            config:
+              tokenSecretKeyRef:
+                name: hetzner-dns-api-token
+                key: api-token
+---
 # Staging issuer for iterating on cert config without hitting rate limits.
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer

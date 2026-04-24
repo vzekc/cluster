@@ -6,3 +6,6 @@ resources:
   - sealed-secrets.yaml
   - statefulset.yaml
   - service.yaml
+  - rbac.yaml
+  - certificate.yaml
+  - cert-sync-cronjob.yaml
