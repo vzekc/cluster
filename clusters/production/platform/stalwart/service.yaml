@@ -45,7 +45,14 @@ metadata:
     # Keeps the pod's client-source-IP visible (vital for Stalwart's
     # SPF/IP-rate-limit logic and for mail server reputation).
     load-balancer.hetzner.cloud/protocol: tcp
-    load-balancer.hetzner.cloud/uses-proxyprotocol: "false"
+    # PROXY protocol header prepended by the Hetzner LB on every
+    # TCP connection, so Stalwart sees the real client IP even though
+    # packets arrive via the private-network gateway (10.98.x.x).
+    # externalTrafficPolicy: Local alone didn't preserve it in this
+    # topology — with use-private-ip=true the kube-proxy hop still
+    # shows up as "source 10.98.1.1" to the pod. Must be paired with
+    # SystemSettings.proxyTrustedNetworks in Stalwart covering 10.98.0.0/16.
+    load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
 spec:
   type: LoadBalancer
   # Preserves real client source IPs — without this kube-proxy SNATs
