@@ -72,6 +72,15 @@ spec:
                   key: FALLBACK_ADMIN_SECRET
             - name: STALWART_RECOVERY_ADMIN
               value: "admin:$(FALLBACK_ADMIN_SECRET)"
+            # StatefulSet pods get hostname=<statefulset-name>-<ordinal>
+            # (here: stalwart-0). Stalwart's webadmin OAuth flow builds
+            # its authorize URL from gethostname(), so without this
+            # override the browser gets redirected to https://stalwart-0/…
+            # even when you hit the pod via https://post.classic-
+            # computing.de. Setting STALWART_HOSTNAME forces Stalwart
+            # to advertise the real public hostname everywhere.
+            - name: STALWART_HOSTNAME
+              value: post.classic-computing.de
           volumeMounts:
             - { name: config, mountPath: /etc/stalwart,     readOnly: true }
             - { name: data,   mountPath: /var/lib/stalwart }
