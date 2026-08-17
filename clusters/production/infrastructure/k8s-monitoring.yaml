@@ -39,17 +39,12 @@ spec:
           create: false
           name: grafana-cloud
           namespace: observability
-      - name: grafanacloud-logs
+      # Logs land in the Loki in this namespace, which is also where machines
+      # outside the cluster ship theirs. It is reached over the service network,
+      # so this path carries no credentials and has nothing to rotate.
+      - name: loki
         type: loki
-        url: https://logs-prod-012.grafana.net/loki/api/v1/push
-        auth:
-          type: basic
-          usernameKey: loki-user
-          passwordKey: api-key
-        secret:
-          create: false
-          name: grafana-cloud
-          namespace: observability
+        url: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
       - name: grafanacloud-traces
         type: otlp
         url: https://tempo-prod-10-prod-eu-west-2.grafana.net/tempo

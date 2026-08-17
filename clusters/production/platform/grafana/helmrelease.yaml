@@ -1,0 +1,64 @@
+# Grafana is how the logs in Loki are read: from a desk, and from a phone in a
+# hall somewhere. Logs Drilldown is installed alongside it because it browses by
+# tapping label values, which is what makes a small screen workable — picking an
+# application out of a list rather than composing LogQL one character at a time.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  interval: 15m
+  releaseName: grafana
+  chart:
+    spec:
+      chart: grafana
+      version: "10.x"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    # The admin credentials live in the SealedSecret beside this file.
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+
+    # Dashboards, saved queries and the plugin's own state.
+    persistence:
+      enabled: true
+      storageClassName: hcloud-volumes
+      size: 5Gi
+
+    plugins:
+      - grafana-lokiexplore-app
+
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: Loki
+            uid: loki
+            type: loki
+            access: proxy
+            url: http://loki.observability.svc.cluster.local:3100
+            isDefault: true
+
+    grafana.ini:
+      server:
+        root_url: https://grafana.k8s.classic-computing.de
+      analytics:
+        reporting_enabled: false
+        check_for_updates: false
+      news:
+        news_feed_enabled: false
+      users:
+        # One operator account. Anyone who needs in is given one.
+        allow_sign_up: false
+
+    # TLS terminates at Traefik, and the ingress is a manifest of its own.
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false

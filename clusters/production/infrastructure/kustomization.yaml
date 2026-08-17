@@ -12,5 +12,6 @@ resources:
   - cluster-issuer.yaml
   - external-dns.yaml
   - cloudnative-pg.yaml
+  - loki.yaml
   - k8s-monitoring.yaml
   - traefik.yaml
