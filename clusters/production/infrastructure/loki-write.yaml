@@ -1,0 +1,60 @@
+# The way into Loki from outside the cluster: the machines at an exhibition that
+# have their own logs to tell. Only the push path is published, and only behind
+# a password, because this is an address on the public internet whose whole job
+# is to accept writes.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: loki-push-auth
+  namespace: observability
+spec:
+  basicAuth:
+    secret: loki-push-auth
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: loki-write
+  namespace: observability
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: loki.k8s.classic-computing.de
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: observability-loki-push-auth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [loki.k8s.classic-computing.de]
+      secretName: loki-write-tls
+  rules:
+    - host: loki.k8s.classic-computing.de
+      http:
+        paths:
+          # Reading happens through Grafana. This host accepts writes.
+          - path: /loki/api/v1/push
+            pathType: Exact
+            backend:
+              service:
+                name: loki
+                port: { number: 3100 }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: loki-write-tls
+  namespace: observability
+spec:
+  secretName: loki-write-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: loki.k8s.classic-computing.de
+  dnsNames:
+    - loki.k8s.classic-computing.de
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  duration: 2160h
+  renewBefore: 720h

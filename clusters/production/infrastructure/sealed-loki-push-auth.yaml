@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: loki-push-auth
+  namespace: observability
+spec:
+  encryptedData:
+    users: AgBMkusaDuUkSBQF/o1GfdbTatzMD1hik8xFRdwI4bVWp2yL1wNODDi2saU8kns8ubIXxmpyINe8eynJYc63Tyoa/blarprn1bXzz2hkNZOGmz/d0LhFaLd9weXEI4qgoC4GWTzeSIhK1tU6m0WCVR9wziKqXR+Vl0TTD7a6kvK2X0Mz6T3rvwegmAb6monpOZO2gG2H5swipU1Ubaj+4GDVgXTN+v6h7l6SAoRcoYHfjNvq978gYifNTxZjuVAxlgC6XI9Y5tV+5TL21iprMZXB7+DaOFi4/yHcB5bXcz7QwhTcUjvtiHsNhSJaaSH/U/ilnwwhZ54uB9WMcGJmkiyTyMKEGrWnqkRGg/ZrImlUhZnRK7THOCOA12cyBmhcFRGdrfpxOJsgrkREO09vu0CZ0TJagEDI6qMdXK4rintNXp1RbWcWVOR+yhUKx5c+q6F83O3P1GBVOJku78TBvws3/2spQ3b0LRuosQ8JGW6VzXyUSeV1BzKduMEkJNcS6AyZX972Potv0TOJTmL8I9AZRG4mtisNb0jOX6BueM+Qj9RToPdZQv5itUuf/j8G/cSN3AVFVzgmvZQm24BA8AqwyLF3jQYX35PjdN0kGtlBiTUuX903oXDrvCxFyYCLakHDvpEWjCGtdJnuIi+Wf3jbMMVk26ZykUvuu+bKoscJpCZK0fzBfRWa6QqzC88Wx98hG09VYzLb9tlDZFPemg82kFse0+HmRhaAvCfxgngshVa8JERBdD4gjMf+iaa4hOCWZiUrCuwxD/yVg5znzLKUN8kntg==
+  template:
+    metadata:
+      name: loki-push-auth
+      namespace: observability

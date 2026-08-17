@@ -13,5 +13,7 @@ resources:
   - external-dns.yaml
   - cloudnative-pg.yaml
   - loki.yaml
+  - sealed-loki-push-auth.yaml
+  - loki-write.yaml
   - k8s-monitoring.yaml
   - traefik.yaml
