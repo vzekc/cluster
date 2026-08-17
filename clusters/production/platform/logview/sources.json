@@ -1,0 +1,58 @@
+{
+  "sources": [
+    {
+      "id": "booth",
+      "name": "FotoFix booth",
+      "note": "the SGI Indy in the hall",
+      "query": "{host=\"fotofix-indy\"}",
+      "status": {
+        "label": "state",
+        "pattern": "fotofix: (attract|live|countdown|frozen|printing|done|error)\\s*$"
+      }
+    },
+    {
+      "id": "fotofix-pi",
+      "name": "FotoFix Pi",
+      "note": "everything the exhibition's server logs",
+      "query": "{host=\"fotofix\"}"
+    },
+    {
+      "id": "intake",
+      "name": "Intake",
+      "note": "photos in, receipts printed",
+      "query": "{unit=\"fotofix-intake.service\"}"
+    },
+    {
+      "id": "print-relay",
+      "name": "Print relay",
+      "note": "VERON's print runs",
+      "query": "{unit=\"fotofix-print-relay.service\"}"
+    },
+    {
+      "id": "exhibitron",
+      "name": "Exhibitron",
+      "query": "{namespace=\"prod\", service_name=\"exhibitron\"}"
+    },
+    {
+      "id": "veron",
+      "name": "VERON",
+      "query": "{namespace=\"prod\", service_name=\"veron\"}"
+    },
+    {
+      "id": "hasso",
+      "name": "Hasso",
+      "query": "{namespace=\"prod\", service_name=\"hasso\"}"
+    },
+    {
+      "id": "cluster",
+      "name": "Cluster (all apps)",
+      "note": "everything running in prod",
+      "query": "{namespace=\"prod\"}"
+    },
+    {
+      "id": "ingress",
+      "name": "Ingress",
+      "query": "{namespace=\"traefik\"}"
+    }
+  ]
+}

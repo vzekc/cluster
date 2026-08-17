@@ -4,3 +4,4 @@ resources:
   - nats/
   - headlamp/
   - grafana/
+  - logview/

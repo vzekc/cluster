@@ -1,0 +1,72 @@
+# A page and a proxy, and nothing else: stock nginx with the page mounted
+# beside it, so adding a log source is an edit to sources.json and a commit
+# rather than an image to build and somewhere to keep it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logview
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logview
+  template:
+    metadata:
+      labels:
+        app: logview
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.29-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: app
+              mountPath: /srv
+              readOnly: true
+            - name: conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 24Mi }
+            limits:   { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: app
+          configMap:
+            name: logview-app
+        - name: conf
+          configMap:
+            name: logview-nginx
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logview
+  namespace: observability
+spec:
+  selector:
+    app: logview
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

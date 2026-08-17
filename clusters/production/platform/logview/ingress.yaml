@@ -1,0 +1,55 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: logview-auth
+  namespace: observability
+spec:
+  basicAuth:
+    secret: logview-auth
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: logview
+  namespace: observability
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: logs.k8s.classic-computing.de
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: observability-logview-auth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [logs.k8s.classic-computing.de]
+      secretName: logview-tls
+  rules:
+    - host: logs.k8s.classic-computing.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: logview
+                port: { number: 80 }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: logview-tls
+  namespace: observability
+spec:
+  secretName: logview-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: logs.k8s.classic-computing.de
+  dnsNames:
+    - logs.k8s.classic-computing.de
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  duration: 2160h
+  renewBefore: 720h

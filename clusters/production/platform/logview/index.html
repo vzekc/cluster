@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Logs</title>
+<style>
+  :root {
+    --bg:      #12141a;
+    --panel:   #1a1d26;
+    --edge:    #2b303d;
+    --text:    #d7dce5;
+    --dim:     #7d879c;
+    --accent:  #6fb3ff;
+    --live:    #4ec9a0;
+    --warn:    #e0a44a;
+    --bad:     #ef6b6b;
+    --tap:     44px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:     #f7f8fa;
+      --panel:  #ffffff;
+      --edge:   #dfe3ea;
+      --text:   #1d2230;
+      --dim:    #67707f;
+      --accent: #1e6fd9;
+      --live:   #16855f;
+      --warn:   #9a6208;
+      --bad:    #c02626;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    overscroll-behavior-y: none;
+  }
+
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--panel);
+    border-bottom: 1px solid var(--edge);
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .row { display: flex; gap: 8px; align-items: center; }
+
+  select, input, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    min-height: var(--tap);
+    padding: 0 10px;
+  }
+  select { flex: 1 1 auto; min-width: 0; -webkit-appearance: none; appearance: none;
+           background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%),
+                             linear-gradient(135deg, var(--dim) 50%, transparent 50%);
+           background-position: right 14px center, right 9px center;
+           background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+           padding-right: 28px; }
+  input { flex: 1 1 auto; min-width: 0; }
+  input::placeholder { color: var(--dim); }
+  button { background: var(--panel); cursor: pointer; white-space: nowrap; }
+  button:active { background: var(--edge); }
+
+  /* Connection state, and the one thing a source may promise to tell you. */
+  .bar { display: flex; align-items: center; gap: 10px; min-height: 22px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); flex: none; }
+  .dot.on   { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+  .dot.warn { background: var(--warn); }
+  .dot.off  { background: var(--bad); }
+  .state { font-size: 13px; color: var(--dim); }
+  .note  { font-size: 13px; color: var(--dim); margin-left: auto; text-align: right; }
+
+  #status {
+    display: none;
+    align-items: baseline; gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+  }
+  #status.show { display: flex; }
+  #status .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+  #status .v { font-size: clamp(22px, 7vw, 34px); font-weight: 650; line-height: 1.1;
+               font-variant-numeric: tabular-nums; }
+  #status .v.error { color: var(--bad); }
+  #status .age { margin-left: auto; font-size: 12px; color: var(--dim); }
+
+  main {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 0 40vh;
+  }
+  .line {
+    display: block;
+    padding: 5px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--edge) 45%, transparent);
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .line .t { color: var(--dim); }
+  .line.lvl-error, .line.lvl-critical { color: var(--bad); }
+  .line.lvl-warn, .line.lvl-warning   { color: var(--warn); }
+  .line .src { color: var(--accent); }
+  .empty { padding: 28px 14px; color: var(--dim); text-align: center; }
+
+  #jump {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    display: none; z-index: 6;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 999px; padding: 0 18px; min-height: var(--tap);
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  }
+  #jump.show { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="row">
+    <select id="source" aria-label="Log source"></select>
+    <button id="pause" aria-label="Pause or resume">Pause</button>
+  </div>
+  <div class="row">
+    <input id="filter" type="search" placeholder="filter these lines" autocomplete="off"
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div id="status"><span class="k" id="statusKey">state</span><span class="v" id="statusVal">—</span><span class="age" id="statusAge"></span></div>
+  <div class="bar">
+    <span class="dot" id="dot"></span>
+    <span class="state" id="state">connecting…</span>
+    <span class="note" id="note"></span>
+  </div>
+</header>
+
+<main id="log"><div class="empty">loading…</div></main>
+<button id="jump">jump to live</button>
+
+<script>
+(() => {
+  "use strict";
+
+  const HISTORY   = 300;     // lines fetched when a source is opened
+  const KEEP      = 2000;    // lines held in the page before the oldest go
+  const REOPEN_MS = 2000;    // between attempts to reopen a dropped tail
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    source: $("source"), filter: $("filter"), pause: $("pause"),
+    log: $("log"), dot: $("dot"), state: $("state"), note: $("note"),
+    jump: $("jump"), status: $("status"),
+    statusKey: $("statusKey"), statusVal: $("statusVal"), statusAge: $("statusAge"),
+  };
+
+  let sources = [], current = null, socket = null, reopen = null;
+  let paused = false, atBottom = true, generation = 0;
+  let statusRe = null, statusAt = 0;
+
+  // ── the log area ────────────────────────────────────────────────────────
+
+  const fmtTime = ns => {
+    const d = new Date(Number(BigInt(ns) / 1000000n));
+    return d.toLocaleTimeString([], { hour12: false }) +
+           "." + String(d.getMilliseconds()).padStart(3, "0");
+  };
+
+  // A line the booth wrote already begins with its own stamp. Repeating the
+  // arrival time beside it says the same thing twice, so it is left off.
+  const OWN_STAMP = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d/;
+
+  function render(entry) {
+    const el = document.createElement("div");
+    el.className = "line" + (entry.level ? " lvl-" + entry.level : "");
+
+    if (!OWN_STAMP.test(entry.text)) {
+      const t = document.createElement("span");
+      t.className = "t";
+      t.textContent = fmtTime(entry.ts) + "  ";
+      el.appendChild(t);
+    }
+    if (entry.who) {
+      const s = document.createElement("span");
+      s.className = "src";
+      s.textContent = entry.who + "  ";
+      el.appendChild(s);
+    }
+    el.appendChild(document.createTextNode(entry.text));
+    el.dataset.text = entry.text.toLowerCase();
+    return el;
+  }
+
+  function matchesFilter(el) {
+    const q = els.filter.value.trim().toLowerCase();
+    return !q || el.dataset.text.includes(q);
+  }
+
+  function append(entries) {
+    if (!entries.length) return;
+    const frag = document.createDocumentFragment();
+    for (const e of entries) {
+      const el = render(e);
+      el.hidden = !matchesFilter(el);
+      frag.appendChild(el);
+      noteStatus(e);
+    }
+    const empty = els.log.querySelector(".empty");
+    if (empty) empty.remove();
+    els.log.appendChild(frag);
+
+    while (els.log.childElementCount > KEEP) els.log.firstElementChild.remove();
+    if (atBottom && !paused) stick();
+  }
+
+  const stick = () => { els.log.scrollTop = els.log.scrollHeight; };
+
+  els.log.addEventListener("scroll", () => {
+    atBottom = els.log.scrollHeight - els.log.scrollTop - els.log.clientHeight < 60;
+    els.jump.classList.toggle("show", !atBottom);
+  }, { passive: true });
+
+  els.jump.onclick = () => { atBottom = true; stick(); els.jump.classList.remove("show"); };
+
+  els.filter.addEventListener("input", () => {
+    for (const el of els.log.children) {
+      if (el.classList.contains("line")) el.hidden = !matchesFilter(el);
+    }
+    if (atBottom) stick();
+  });
+
+  els.pause.onclick = () => {
+    paused = !paused;
+    els.pause.textContent = paused ? "Resume" : "Pause";
+    if (!paused) { atBottom = true; stick(); }
+    say();
+  };
+
+  // ── the one line a source may promise ───────────────────────────────────
+
+  function noteStatus(entry) {
+    if (!statusRe) return;
+    const m = entry.text.match(statusRe);
+    if (!m) return;
+    const value = m[1] !== undefined ? m[1] : m[0];
+    els.statusVal.textContent = value;
+    els.statusVal.classList.toggle("error", /error|fault|fail/i.test(value));
+    statusAt = Number(BigInt(entry.ts) / 1000000n);
+    tickAge();
+  }
+
+  function tickAge() {
+    if (!statusAt) { els.statusAge.textContent = ""; return; }
+    const s = Math.max(0, Math.round((Date.now() - statusAt) / 1000));
+    els.statusAge.textContent =
+      s < 60 ? s + "s ago"
+             : s < 3600 ? Math.round(s / 60) + "m ago"
+                        : Math.round(s / 3600) + "h ago";
+  }
+  setInterval(tickAge, 1000);
+
+  // ── connection state ────────────────────────────────────────────────────
+
+  function say(text, cls) {
+    if (text !== undefined) {
+      els.state.textContent = text;
+      els.dot.className = "dot" + (cls ? " " + cls : "");
+    }
+    if (paused) { els.state.textContent = "paused"; els.dot.className = "dot warn"; }
+  }
+
+  // ── talking to Loki ─────────────────────────────────────────────────────
+
+  function entriesFrom(payload) {
+    const out = [];
+    for (const s of payload.streams || payload.data?.result || []) {
+      const labels = s.stream || {};
+      const who = labels.unit || labels.pod || labels.service_name || "";
+      for (const [ts, text] of s.values) {
+        out.push({ ts, text, who, level: (labels.detected_level || "").toLowerCase() });
+      }
+    }
+    out.sort((a, b) => (BigInt(a.ts) < BigInt(b.ts) ? -1 : 1));
+    return out;
+  }
+
+  async function history(source, mine) {
+    const end = Date.now() * 1e6;
+    const start = end - 6 * 3600 * 1e9;
+    const url = "loki/api/v1/query_range?direction=backward&limit=" + HISTORY +
+                "&start=" + start + "&end=" + end +
+                "&query=" + encodeURIComponent(source.query);
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("Loki answered " + r.status);
+      const body = await r.json();
+      if (mine !== generation) return;
+      const lines = entriesFrom(body);
+      els.log.innerHTML = lines.length ? "" :
+        '<div class="empty">nothing in the last six hours</div>';
+      append(lines);
+      stick();
+    } catch (e) {
+      if (mine !== generation) return;
+      els.log.innerHTML = '<div class="empty">could not read: ' + e.message + "</div>";
+    }
+  }
+
+  function tail(source, mine) {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    const url = proto + "://" + location.host + location.pathname.replace(/\/$/, "") +
+                "/loki/api/v1/tail?limit=" + HISTORY +
+                "&query=" + encodeURIComponent(source.query);
+
+    socket = new WebSocket(url);
+
+    socket.onopen = () => { if (mine === generation) say("live", "on"); };
+
+    socket.onmessage = ev => {
+      if (mine !== generation || paused) return;
+      let payload;
+      try { payload = JSON.parse(ev.data); } catch { return; }
+      append(entriesFrom(payload));
+      if (payload.dropped_entries?.length) {
+        say("live — Loki dropped " + payload.dropped_entries.length, "warn");
+      }
+    };
+
+    const retry = () => {
+      if (mine !== generation) return;
+      say("reconnecting…", "off");
+      clearTimeout(reopen);
+      reopen = setTimeout(() => { if (mine === generation) tail(source, mine); }, REOPEN_MS);
+    };
+    socket.onclose = retry;
+    socket.onerror = () => { try { socket.close(); } catch {} };
+  }
+
+  function open(source) {
+    const mine = ++generation;
+    current = source;
+
+    clearTimeout(reopen);
+    if (socket) { try { socket.onclose = null; socket.close(); } catch {} socket = null; }
+
+    statusRe = source.status ? new RegExp(source.status.pattern) : null;
+    statusAt = 0;
+    els.statusVal.textContent = "—";
+    els.statusVal.classList.remove("error");
+    els.statusAge.textContent = "";
+    els.statusKey.textContent = source.status?.label || "state";
+    els.status.classList.toggle("show", !!source.status);
+
+    els.note.textContent = source.note || "";
+    els.log.innerHTML = '<div class="empty">loading…</div>';
+    atBottom = true;
+    els.jump.classList.remove("show");
+    say("connecting…", "");
+
+    localStorage.setItem("logview.source", source.id);
+    history(source, mine).then(() => { if (mine === generation) tail(source, mine); });
+  }
+
+  els.source.onchange = () => {
+    const s = sources.find(x => x.id === els.source.value);
+    if (s) open(s);
+  };
+
+  // A phone that has been in a pocket comes back with a socket the browser
+  // froze. Reopening on return is cheaper than trusting it.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && current && (!socket || socket.readyState > 1)) open(current);
+  });
+
+  (async function start() {
+    try {
+      const r = await fetch("sources.json", { cache: "no-cache" });
+      sources = (await r.json()).sources || [];
+    } catch {
+      els.log.innerHTML = '<div class="empty">no sources configured</div>';
+      return;
+    }
+    if (!sources.length) {
+      els.log.innerHTML = '<div class="empty">no sources configured</div>';
+      return;
+    }
+    for (const s of sources) {
+      const o = document.createElement("option");
+      o.value = s.id;
+      o.textContent = s.name;
+      els.source.appendChild(o);
+    }
+    const wanted = new URLSearchParams(location.search).get("source") ||
+                   localStorage.getItem("logview.source");
+    const pick = sources.find(s => s.id === wanted) || sources[0];
+    els.source.value = pick.id;
+    open(pick);
+  })();
+})();
+</script>
+</body>
+</html>
