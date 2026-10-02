@@ -56,8 +56,6 @@ spec:
       compactor:
         retention_enabled: true
         delete_request_store: filesystem
-        # A delete request is carried out ten minutes after it is filed.
-        delete_request_cancel_period: 10m
 
     singleBinary:
       replicas: 1
