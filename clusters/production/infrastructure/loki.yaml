@@ -53,9 +53,14 @@ spec:
             priority: 1
             period: 2160h
         max_query_length: 2160h
+        # Wide enough for the FotoFix photo-file log's history, which reaches
+        # back to 22 August 2026, to be rewritten after the fact.
+        reject_old_samples_max_age: 1080h
       compactor:
         retention_enabled: true
         delete_request_store: filesystem
+        # A delete request is carried out ten minutes after it is filed.
+        delete_request_cancel_period: 10m
 
     singleBinary:
       replicas: 1
