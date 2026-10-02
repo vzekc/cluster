@@ -1,0 +1,53 @@
+# The FotoFix photo-file log, {job="fotofix-access"}, records which visitor
+# photos were fetched and from which network. It is kept until four weeks after
+# Classic Computing 2026 (9–11 October 2026) and deleted then: at 03:00 on
+# 9 November 2026 this job files a delete request for the whole stream, which
+# the compactor carries out once Loki's 24-hour cancellation window has passed.
+#
+# A CronJob fires every year on its date, so the job checks the year and does
+# nothing in any other. Once it has run, it can go.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: loki-purge-fotofix-access
+  namespace: observability
+spec:
+  schedule: "0 3 9 11 *"
+  timeZone: Europe/Berlin
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 6
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: purge
+              image: curlimages/curl:8.11.1
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  if [ "$(date +%Y)" != 2026 ]; then
+                    echo "nothing to purge in $(date +%Y)"
+                    exit 0
+                  fi
+                  curl -fsS -X POST -G \
+                    http://loki.observability.svc.cluster.local:3100/loki/api/v1/delete \
+                    --data-urlencode 'query={job="fotofix-access"}' \
+                    --data-urlencode 'start=2026-01-01T00:00:00Z' \
+                    --data-urlencode "end=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                  curl -fsS http://loki.observability.svc.cluster.local:3100/loki/api/v1/delete

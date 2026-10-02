@@ -45,6 +45,23 @@ spec:
             url: http://loki.observability.svc.cluster.local:3100
             isDefault: true
 
+    # Dashboards kept in this repository, from the ConfigMap the kustomization
+    # beside this file builds out of dashboards/.
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: provisioned
+            orgId: 1
+            folder: Provisioned
+            type: file
+            disableDeletion: true
+            editable: false
+            options:
+              path: /var/lib/grafana/dashboards/provisioned
+    dashboardsConfigMaps:
+      provisioned: grafana-dashboards-provisioned
+
     grafana.ini:
       server:
         root_url: https://grafana.k8s.classic-computing.de

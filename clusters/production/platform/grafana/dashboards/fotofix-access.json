@@ -1,0 +1,447 @@
+{
+  "uid": "fotofix-access",
+  "title": "FotoFix downloads",
+  "tags": [
+    "fotofix"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "description": "Every photo file fetched from exhibitron and the hall Pi, over HTTP, HTTPS, FTP and SMB.",
+  "templating": {
+    "list": [
+      {
+        "name": "site",
+        "label": "Site",
+        "type": "custom",
+        "query": "exhibitron,hall",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "proto",
+        "label": "Protocol",
+        "type": "custom",
+        "query": "http,https,ftp,smb",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "id",
+        "label": "Photo ID (regex)",
+        "type": "textbox",
+        "query": ".+",
+        "current": {
+          "text": ".+",
+          "value": ".+"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Files fetched",
+      "description": "Retrievals in the selected time range.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "0"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Photo IDs",
+      "description": "Distinct photo IDs fetched in the selected range.",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "count(sum by (id) (count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" | keep id [$__range])))",
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "0"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Fetches by protocol",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (proto) (count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" [$__auto]))",
+          "queryType": "range",
+          "legendFormat": "{{proto}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "By photo ID",
+      "description": "Fetches per photo ID in the selected range.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (id) (count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" | keep id [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "fetches"
+            },
+            "indexByName": {
+              "id": 0,
+              "Value": 1
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "fetches",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": [
+            "fetches"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Files fetched",
+      "description": "Every file fetched in the selected range — pick the start of the range to see everything since then.",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 12,
+        "h": 14
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (id, file, proto, site) (count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" | keep id, file, proto, site [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "fetches"
+            },
+            "indexByName": {
+              "id": 0,
+              "file": 1,
+              "proto": 2,
+              "site": 3,
+              "Value": 4
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "fetches",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": [
+            "fetches"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "By client network",
+      "description": "Fetches per client network (/24 or /48) and user agent.",
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (client, agent) (count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" | keep client, agent [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "fetches"
+            },
+            "indexByName": {
+              "client": 0,
+              "agent": 1,
+              "Value": 2
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "fetches",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": [
+            "fetches"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "Live",
+      "description": "Every retrieval as it happens, newest first.",
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "showLabels": true
+      }
+    }
+  ]
+}

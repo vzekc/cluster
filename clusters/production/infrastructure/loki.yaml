@@ -5,6 +5,11 @@
 #
 # Retention is 30 days. Anything older is compacted away, which is what keeps a
 # fixed-size volume a fixed-size volume.
+#
+# The FotoFix photo-file log, {job="fotofix-access"}, is kept 90 days: it has to
+# reach back to before the exhibition until four weeks after it, when
+# loki-purge-fotofix-access.yaml deletes it. A query may span the same 90 days,
+# so "everything fetched since" covers the whole log.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -43,6 +48,14 @@ spec:
               period: 24h
       limits_config:
         retention_period: 720h
+        retention_stream:
+          - selector: '{job="fotofix-access"}'
+            priority: 1
+            period: 2160h
+        max_query_length: 2160h
+        # Wide enough for the FotoFix photo-file log's history, which reaches
+        # back to 22 August 2026, to be loaded after the fact.
+        reject_old_samples_max_age: 1080h
       compactor:
         retention_enabled: true
         delete_request_store: filesystem

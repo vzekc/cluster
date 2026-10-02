@@ -5,3 +5,13 @@ resources:
   - helmrelease.yaml
   - ingress.yaml
   - certificate.yaml
+
+# Dashboards provisioned from files here, mounted into Grafana by the
+# HelmRelease under the fixed name it refers to them by.
+configMapGenerator:
+  - name: grafana-dashboards-provisioned
+    namespace: observability
+    files:
+      - dashboards/fotofix-access.json
+    options:
+      disableNameSuffixHash: true

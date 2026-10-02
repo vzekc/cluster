@@ -29,6 +29,12 @@
       "query": "{unit=\"fotofix-print-relay.service\"}"
     },
     {
+      "id": "fotofix-downloads",
+      "name": "FotoFix downloads",
+      "note": "every photo file fetched, all protocols, internet and hall",
+      "query": "{job=\"fotofix-access\"}"
+    },
+    {
       "id": "exhibitron",
       "name": "Exhibitron",
       "query": "{namespace=\"prod\", service_name=\"exhibitron\"}"
