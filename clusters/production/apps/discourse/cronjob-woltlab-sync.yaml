@@ -7,6 +7,9 @@ metadata:
     app: discourse
     component: woltlab-sync
 spec:
+  # Suspended until cutover: the cluster install becomes the sync target
+  # once it is authoritative for discourse.classic-computing.de.
+  suspend: true
   # 02:00 UTC matches the legacy host timer's local-time slot well
   # enough; the precise hour doesn't matter, just stay off the
   # discourse-backup window that the old VM still runs at 02:30.

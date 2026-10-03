@@ -63,14 +63,19 @@ spec:
             - { name: http, containerPort: 3000 }
           volumeMounts:
             - { name: shared, mountPath: /shared }
+          # Pod start runs db:migrate and asset precompile before unicorn
+          # listens; the startup probe allows 15 min for that so liveness
+          # only takes over once the app is up.
+          startupProbe:
+            httpGet: { path: /srv/status, port: 3000 }
+            periodSeconds: 10
+            failureThreshold: 90
           readinessProbe:
             httpGet: { path: /srv/status, port: 3000 }
-            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 6
           livenessProbe:
             httpGet: { path: /srv/status, port: 3000 }
-            initialDelaySeconds: 180
             periodSeconds: 30
             failureThreshold: 3
           resources:

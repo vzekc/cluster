@@ -6,12 +6,12 @@ metadata:
 spec:
   secretName: discourse-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-prod-dns01-hetzner
     kind: ClusterIssuer
   commonName: discourse.k8s.classic-computing.de
-  # Both names go on the cert from day one. The .classic-computing.de
-  # SAN is unused until cutover; an HTTP-01 challenge for it will only
-  # succeed once DNS points at the cluster.
+  # Both names go on the cert from day one. DNS-01 validates the bare
+  # hostname while its A record still points at the old VM, so the
+  # cluster serves a valid cert for it the moment DNS is flipped.
   dnsNames:
     - discourse.k8s.classic-computing.de
     - discourse.classic-computing.de
