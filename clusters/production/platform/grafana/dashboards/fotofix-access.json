@@ -32,7 +32,7 @@
         "name": "proto",
         "label": "Protocol",
         "type": "custom",
-        "query": "http,https,ftp,smb",
+        "query": "http,https,ftp,smb,kermit,zmodem,xmodem,ymodem,tono,minitel",
         "includeAll": true,
         "allValue": ".+",
         "multi": true,
@@ -341,7 +341,7 @@
       "id": 6,
       "type": "table",
       "title": "By client",
-      "description": "Fetches per client address and user agent.",
+      "description": "Fetches per client address and user agent, and per serial port.",
       "gridPos": {
         "x": 12,
         "y": 10,
@@ -359,7 +359,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (ip, agent) (count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" | keep ip, agent [$__range]))",
+          "expr": "sum by (ip, port, agent) (count_over_time({job=\"fotofix-access\", site=~\"$site\", proto=~\"$proto\"} | logfmt | id=~\"(?i)$id\" | keep ip, port, agent [$__range]))",
           "queryType": "instant"
         }
       ],
@@ -381,8 +381,9 @@
             },
             "indexByName": {
               "ip": 0,
-              "agent": 1,
-              "Value": 2
+              "port": 1,
+              "agent": 2,
+              "Value": 3
             }
           }
         }
