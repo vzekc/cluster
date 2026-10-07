@@ -28,7 +28,7 @@ spec:
         - name: web
           # Flux Image Automation rewrites the tag on this line when a
           # new ghcr.io/vzekc/discourse:stable-* image is pushed.
-          image: ghcr.io/vzekc/discourse:stable-20261006-1052-5cbc50c # {"$imagepolicy": "flux-system:discourse"}
+          image: ghcr.io/vzekc/discourse:stable-20261007-1040-5cbc50c # {"$imagepolicy": "flux-system:discourse"}
           imagePullPolicy: IfNotPresent
           env:
             - {name: DISCOURSE_ROLE, value: "web"}
