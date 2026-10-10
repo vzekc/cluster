@@ -35,7 +35,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
         - name: sidekiq
-          image: ghcr.io/vzekc/discourse:stable-20261009-1059-5cbc50c # {"$imagepolicy": "flux-system:discourse"}
+          image: ghcr.io/vzekc/discourse:stable-20261010-1012-5cbc50c # {"$imagepolicy": "flux-system:discourse"}
           imagePullPolicy: IfNotPresent
           env:
             - {name: DISCOURSE_ROLE, value: "sidekiq"}
